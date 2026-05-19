@@ -1,0 +1,63 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.App", "src\LaserEnergyMonitor.App\LaserEnergyMonitor.App.csproj", "{9A40C820-1D26-4D80-A4B3-D57D9154E0A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Application", "src\LaserEnergyMonitor.Application\LaserEnergyMonitor.Application.csproj", "{1B4AF4D6-8138-4AB6-915D-12D03FF66A12}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Domain", "src\LaserEnergyMonitor.Domain\LaserEnergyMonitor.Domain.csproj", "{20379AF2-5779-4FBA-B070-113BE31B2B18}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Infrastructure", "src\LaserEnergyMonitor.Infrastructure\LaserEnergyMonitor.Infrastructure.csproj", "{D3046492-C038-447E-9E4D-2BC66A23444A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Infrastructure.BeamGage", "src\LaserEnergyMonitor.Infrastructure.BeamGage\LaserEnergyMonitor.Infrastructure.BeamGage.csproj", "{3B93EE16-1123-4B51-9266-C44EA09A31F4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Infrastructure.Ophir", "src\LaserEnergyMonitor.Infrastructure.Ophir\LaserEnergyMonitor.Infrastructure.Ophir.csproj", "{CE742F19-D754-4F93-A3C6-BD1C9B726AB2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Infrastructure.Excel", "src\LaserEnergyMonitor.Infrastructure.Excel\LaserEnergyMonitor.Infrastructure.Excel.csproj", "{FC90C327-0C81-4610-A67B-A123D8A3FB14}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Infrastructure.Logging", "src\LaserEnergyMonitor.Infrastructure.Logging\LaserEnergyMonitor.Infrastructure.Logging.csproj", "{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9A40C820-1D26-4D80-A4B3-D57D9154E0A1}.Debug|x86.ActiveCfg = Debug|x86
+		{9A40C820-1D26-4D80-A4B3-D57D9154E0A1}.Debug|x86.Build.0 = Debug|x86
+		{9A40C820-1D26-4D80-A4B3-D57D9154E0A1}.Release|x86.ActiveCfg = Release|x86
+		{9A40C820-1D26-4D80-A4B3-D57D9154E0A1}.Release|x86.Build.0 = Release|x86
+		{1B4AF4D6-8138-4AB6-915D-12D03FF66A12}.Debug|x86.ActiveCfg = Debug|x86
+		{1B4AF4D6-8138-4AB6-915D-12D03FF66A12}.Debug|x86.Build.0 = Debug|x86
+		{1B4AF4D6-8138-4AB6-915D-12D03FF66A12}.Release|x86.ActiveCfg = Release|x86
+		{1B4AF4D6-8138-4AB6-915D-12D03FF66A12}.Release|x86.Build.0 = Release|x86
+		{20379AF2-5779-4FBA-B070-113BE31B2B18}.Debug|x86.ActiveCfg = Debug|x86
+		{20379AF2-5779-4FBA-B070-113BE31B2B18}.Debug|x86.Build.0 = Debug|x86
+		{20379AF2-5779-4FBA-B070-113BE31B2B18}.Release|x86.ActiveCfg = Release|x86
+		{20379AF2-5779-4FBA-B070-113BE31B2B18}.Release|x86.Build.0 = Release|x86
+		{D3046492-C038-447E-9E4D-2BC66A23444A}.Debug|x86.ActiveCfg = Debug|x86
+		{D3046492-C038-447E-9E4D-2BC66A23444A}.Debug|x86.Build.0 = Debug|x86
+		{D3046492-C038-447E-9E4D-2BC66A23444A}.Release|x86.ActiveCfg = Release|x86
+		{D3046492-C038-447E-9E4D-2BC66A23444A}.Release|x86.Build.0 = Release|x86
+		{3B93EE16-1123-4B51-9266-C44EA09A31F4}.Debug|x86.ActiveCfg = Debug|x86
+		{3B93EE16-1123-4B51-9266-C44EA09A31F4}.Debug|x86.Build.0 = Debug|x86
+		{3B93EE16-1123-4B51-9266-C44EA09A31F4}.Release|x86.ActiveCfg = Release|x86
+		{3B93EE16-1123-4B51-9266-C44EA09A31F4}.Release|x86.Build.0 = Release|x86
+		{CE742F19-D754-4F93-A3C6-BD1C9B726AB2}.Debug|x86.ActiveCfg = Debug|x86
+		{CE742F19-D754-4F93-A3C6-BD1C9B726AB2}.Debug|x86.Build.0 = Debug|x86
+		{CE742F19-D754-4F93-A3C6-BD1C9B726AB2}.Release|x86.ActiveCfg = Release|x86
+		{CE742F19-D754-4F93-A3C6-BD1C9B726AB2}.Release|x86.Build.0 = Release|x86
+		{FC90C327-0C81-4610-A67B-A123D8A3FB14}.Debug|x86.ActiveCfg = Debug|x86
+		{FC90C327-0C81-4610-A67B-A123D8A3FB14}.Debug|x86.Build.0 = Debug|x86
+		{FC90C327-0C81-4610-A67B-A123D8A3FB14}.Release|x86.ActiveCfg = Release|x86
+		{FC90C327-0C81-4610-A67B-A123D8A3FB14}.Release|x86.Build.0 = Release|x86
+		{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}.Debug|x86.ActiveCfg = Debug|x86
+		{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}.Debug|x86.Build.0 = Debug|x86
+		{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}.Release|x86.ActiveCfg = Release|x86
+		{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

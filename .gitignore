@@ -1,0 +1,55 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+
+# JetBrains / Visual Studio
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Build outputs
+bin/
+obj/
+build/
+dist/
+out/
+publish/
+TestResults/
+
+# Logs / runtime data
+logs/
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local environment
+.env
+.env.*
+.venv/
+venv/
+
+# Generated measurement exports
+output/
+exports/
+results/
+
+# Local helper folders
+.agents/
+.codex/
+
+# Vendor archives and reference materials
+Beam Gage/
+Ophir Automation Examples/
+
+Beam Gage/
+Ophir Automation Examples/
