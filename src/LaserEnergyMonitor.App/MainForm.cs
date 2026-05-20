@@ -9,15 +9,21 @@ namespace LaserEnergyMonitor.App
 {
     public sealed class MainForm : Form
     {
-        private readonly MeasurementSessionService _service;
+        private readonly MeasurementSessionRuntimeFactory _runtimeFactory;
         private readonly string _defaultOutputDir;
+        private MeasurementSessionService _service;
+        private string _activeFirstSourceKey;
+        private string _activeSecondSourceKey;
 
         private TextBox _sessionNameTextBox;
+        private ComboBox _firstSourceComboBox;
+        private ComboBox _secondSourceComboBox;
         private NumericUpDown _windowSizeInput;
         private NumericUpDown _enterThresholdInput;
         private NumericUpDown _exitThresholdInput;
         private NumericUpDown _syncDeltaInput;
         private TextBox _outputPathTextBox;
+        private TextBox _sourceDiagnosticsTextBox;
         private Label _stateLabel;
         private Label _firstEnergyLabel;
         private Label _secondEnergyLabel;
@@ -30,23 +36,24 @@ namespace LaserEnergyMonitor.App
         private Button _startButton;
         private Button _stopButton;
 
-        public MainForm(MeasurementSessionService service, string defaultOutputDir)
+        public MainForm(MeasurementSessionRuntimeFactory runtimeFactory, string defaultOutputDir)
         {
-            _service = service;
+            _runtimeFactory = runtimeFactory;
             _defaultOutputDir = defaultOutputDir;
             Text = "Laser Energy Monitor Prototype";
             Width = 980;
-            Height = 700;
+            Height = 760;
             StartPosition = FormStartPosition.CenterScreen;
 
             BuildLayout();
             WireEvents();
             UpdateState(MeasurementSessionState.Idle);
+            RefreshSourceDiagnostics();
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            _service.Dispose();
+            ReplaceService(null);
             base.OnFormClosed(e);
         }
 
@@ -58,7 +65,7 @@ namespace LaserEnergyMonitor.App
             root.RowCount = 2;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 260));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 360));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             Controls.Add(root);
 
@@ -70,11 +77,13 @@ namespace LaserEnergyMonitor.App
             TableLayoutPanel settingsLayout = new TableLayoutPanel();
             settingsLayout.Dock = DockStyle.Fill;
             settingsLayout.ColumnCount = 2;
-            settingsLayout.RowCount = 7;
+            settingsLayout.RowCount = 10;
             settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             settingsGroup.Controls.Add(settingsLayout);
 
+            _firstSourceComboBox = CreateSourceComboBox(_runtimeFactory.FirstSourceOptions, "beam-sim");
+            _secondSourceComboBox = CreateSourceComboBox(_runtimeFactory.SecondSourceOptions, "ophir-sim");
             _sessionNameTextBox = new TextBox();
             _sessionNameTextBox.Text = "Prototype Session";
             _windowSizeInput = CreateNumeric(20, 5, 10000, 1);
@@ -83,13 +92,21 @@ namespace LaserEnergyMonitor.App
             _syncDeltaInput = CreateNumeric(10m, 1m, 1000m, 0);
             _outputPathTextBox = new TextBox();
             _outputPathTextBox.Text = Path.Combine(_defaultOutputDir, "measurement-session.xlsx");
+            _sourceDiagnosticsTextBox = new TextBox();
+            _sourceDiagnosticsTextBox.Multiline = true;
+            _sourceDiagnosticsTextBox.ReadOnly = true;
+            _sourceDiagnosticsTextBox.ScrollBars = ScrollBars.Vertical;
+            _sourceDiagnosticsTextBox.Height = 96;
 
-            AddLabeledControl(settingsLayout, 0, "Session Name", _sessionNameTextBox);
-            AddLabeledControl(settingsLayout, 1, "Window N", _windowSizeInput);
-            AddLabeledControl(settingsLayout, 2, "Enter Threshold %", _enterThresholdInput);
-            AddLabeledControl(settingsLayout, 3, "Exit Threshold %", _exitThresholdInput);
-            AddLabeledControl(settingsLayout, 4, "Sync Delta ms", _syncDeltaInput);
-            AddLabeledControl(settingsLayout, 5, "Output Path", _outputPathTextBox);
+            AddLabeledControl(settingsLayout, 0, "BeamGage Source", _firstSourceComboBox);
+            AddLabeledControl(settingsLayout, 1, "Ophir Source", _secondSourceComboBox);
+            AddLabeledControl(settingsLayout, 2, "Session Name", _sessionNameTextBox);
+            AddLabeledControl(settingsLayout, 3, "Window N", _windowSizeInput);
+            AddLabeledControl(settingsLayout, 4, "Enter Threshold %", _enterThresholdInput);
+            AddLabeledControl(settingsLayout, 5, "Exit Threshold %", _exitThresholdInput);
+            AddLabeledControl(settingsLayout, 6, "Sync Delta ms", _syncDeltaInput);
+            AddLabeledControl(settingsLayout, 7, "Output Path", _outputPathTextBox);
+            AddLabeledControl(settingsLayout, 8, "Source Status", _sourceDiagnosticsTextBox);
 
             FlowLayoutPanel buttonsPanel = new FlowLayoutPanel();
             buttonsPanel.Dock = DockStyle.Fill;
@@ -102,7 +119,7 @@ namespace LaserEnergyMonitor.App
             buttonsPanel.Controls.Add(_initializeButton);
             buttonsPanel.Controls.Add(_startButton);
             buttonsPanel.Controls.Add(_stopButton);
-            AddLabeledControl(settingsLayout, 6, "Actions", buttonsPanel);
+            AddLabeledControl(settingsLayout, 9, "Actions", buttonsPanel);
 
             GroupBox liveGroup = new GroupBox();
             liveGroup.Text = "Live Status";
@@ -149,17 +166,15 @@ namespace LaserEnergyMonitor.App
             _initializeButton.Click += OnInitializeClicked;
             _startButton.Click += OnStartClicked;
             _stopButton.Click += OnStopClicked;
-
-            _service.StateChanged += OnStateChanged;
-            _service.LiveMeasurementUpdated += OnLiveMeasurementUpdated;
-            _service.SessionEventRaised += OnSessionEventRaised;
+            _firstSourceComboBox.SelectedIndexChanged += OnSourceSelectionChanged;
+            _secondSourceComboBox.SelectedIndexChanged += OnSourceSelectionChanged;
         }
 
         private void OnInitializeClicked(object sender, EventArgs e)
         {
             try
             {
-                _service.Initialize(BuildSettings());
+                EnsureInitializedService(BuildSettings(), true);
                 AddEvent("Sources initialized.");
             }
             catch (Exception ex)
@@ -172,12 +187,8 @@ namespace LaserEnergyMonitor.App
         {
             try
             {
-                if (_service.State == MeasurementSessionState.Idle)
-                {
-                    _service.Initialize(BuildSettings());
-                }
-
-                _service.Start();
+                MeasurementSessionService service = EnsureInitializedService(BuildSettings(), false);
+                service.Start();
                 AddEvent("Session started.");
             }
             catch (Exception ex)
@@ -190,6 +201,11 @@ namespace LaserEnergyMonitor.App
         {
             try
             {
+                if (_service == null)
+                {
+                    return;
+                }
+
                 _service.Stop();
                 AddEvent("Session stopped.");
             }
@@ -197,6 +213,11 @@ namespace LaserEnergyMonitor.App
             {
                 MessageBox.Show(ex.Message, "Stop error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void OnSourceSelectionChanged(object sender, EventArgs e)
+        {
+            RefreshSourceDiagnostics();
         }
 
         private void OnStateChanged(object sender, SessionStateChangedEventArgs e)
@@ -270,6 +291,98 @@ namespace LaserEnergyMonitor.App
             {
                 _eventsListBox.Items.RemoveAt(_eventsListBox.Items.Count - 1);
             }
+        }
+
+        private MeasurementSessionService EnsureInitializedService(SessionSettings settings, bool forceRecreate)
+        {
+            string firstKey = GetSelectedSourceKey(_firstSourceComboBox);
+            string secondKey = GetSelectedSourceKey(_secondSourceComboBox);
+            bool selectionChanged =
+                !string.Equals(firstKey, _activeFirstSourceKey, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(secondKey, _activeSecondSourceKey, StringComparison.OrdinalIgnoreCase);
+
+            if (!forceRecreate && !selectionChanged && _service != null && _service.State == MeasurementSessionState.Initialized)
+            {
+                return _service;
+            }
+
+            MeasurementSessionService newService = _runtimeFactory.Create(firstKey, secondKey);
+            try
+            {
+                newService.Initialize(settings);
+                ReplaceService(newService);
+                _activeFirstSourceKey = firstKey;
+                _activeSecondSourceKey = secondKey;
+                UpdateState(_service.State);
+                return _service;
+            }
+            catch
+            {
+                newService.Dispose();
+                throw;
+            }
+        }
+
+        private void ReplaceService(MeasurementSessionService newService)
+        {
+            if (_service != null)
+            {
+                _service.StateChanged -= OnStateChanged;
+                _service.LiveMeasurementUpdated -= OnLiveMeasurementUpdated;
+                _service.SessionEventRaised -= OnSessionEventRaised;
+                _service.Dispose();
+            }
+
+            _service = newService;
+
+            if (_service != null)
+            {
+                _service.StateChanged += OnStateChanged;
+                _service.LiveMeasurementUpdated += OnLiveMeasurementUpdated;
+                _service.SessionEventRaised += OnSessionEventRaised;
+            }
+        }
+
+        private void RefreshSourceDiagnostics()
+        {
+            if (_sourceDiagnosticsTextBox == null)
+            {
+                return;
+            }
+
+            _sourceDiagnosticsTextBox.Text = _runtimeFactory.BuildDiagnostics(
+                GetSelectedSourceKey(_firstSourceComboBox),
+                GetSelectedSourceKey(_secondSourceComboBox));
+        }
+
+        private static ComboBox CreateSourceComboBox(
+            System.Collections.Generic.IReadOnlyList<MeasurementSourceOption> options,
+            string defaultKey)
+        {
+            ComboBox comboBox = new ComboBox();
+            comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+
+            for (int i = 0; i < options.Count; i++)
+            {
+                comboBox.Items.Add(options[i]);
+                if (string.Equals(options[i].Key, defaultKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    comboBox.SelectedIndex = i;
+                }
+            }
+
+            if (comboBox.SelectedIndex < 0 && comboBox.Items.Count > 0)
+            {
+                comboBox.SelectedIndex = 0;
+            }
+
+            return comboBox;
+        }
+
+        private static string GetSelectedSourceKey(ComboBox comboBox)
+        {
+            MeasurementSourceOption option = comboBox != null ? comboBox.SelectedItem as MeasurementSourceOption : null;
+            return option != null ? option.Key : string.Empty;
         }
 
         private static NumericUpDown CreateNumeric(decimal value, decimal minimum, decimal maximum, int decimalPlaces)

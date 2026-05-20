@@ -90,6 +90,13 @@ namespace LaserEnergyMonitor.Domain
         public DateTime TimestampUtc { get; set; }
     }
 
+    public sealed class MeasurementSourceRuntimeProbeResult
+    {
+        public bool DependencyAvailable { get; set; }
+        public string Summary { get; set; }
+        public string Details { get; set; }
+    }
+
     public enum MeasurementSessionState
     {
         Idle = 0,
