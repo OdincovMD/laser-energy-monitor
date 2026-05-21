@@ -37,6 +37,8 @@ __pycache__/
 .env.*
 .venv/
 venv/
+.appdata/
+.nuget/
 
 # Generated measurement exports
 output/

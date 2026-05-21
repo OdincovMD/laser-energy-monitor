@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using LaserEnergyMonitor.Application;
 using LaserEnergyMonitor.Domain;
@@ -102,6 +103,41 @@ namespace LaserEnergyMonitor.App
             MeasurementSourceOption firstOption = GetFirstSourceOption(firstSourceKey);
             MeasurementSourceOption secondOption = GetSecondSourceOption(secondSourceKey);
 
+            return BuildDiagnosticsReport(firstOption, secondOption);
+        }
+
+        public IReadOnlyList<MeasurementSourceDiagnostic> GetDiagnostics(string firstSourceKey, string secondSourceKey)
+        {
+            MeasurementSourceOption firstOption = GetFirstSourceOption(firstSourceKey);
+            MeasurementSourceOption secondOption = GetSecondSourceOption(secondSourceKey);
+
+            return new[]
+            {
+                CreateDiagnostic("BeamGage", firstOption),
+                CreateDiagnostic("Ophir", secondOption)
+            };
+        }
+
+        public string RunSelfTest(string firstSourceKey, string secondSourceKey)
+        {
+            MeasurementSourceOption firstOption = GetFirstSourceOption(firstSourceKey);
+            MeasurementSourceOption secondOption = GetSecondSourceOption(secondSourceKey);
+
+            StringBuilder builder = new StringBuilder();
+            builder.Append("Hardware self-test generated at ");
+            builder.Append(_clock.UtcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+            builder.AppendLine();
+            builder.AppendLine();
+            builder.Append(BuildDiagnosticsReport(firstOption, secondOption));
+
+            string report = builder.ToString().Trim();
+            new FileApplicationLogger(_logPath).Info("Hardware self-test completed." + Environment.NewLine + report);
+            WriteSelfTestReport(report);
+            return report;
+        }
+
+        private static string BuildDiagnosticsReport(MeasurementSourceOption firstOption, MeasurementSourceOption secondOption)
+        {
             StringBuilder builder = new StringBuilder();
             AppendDiagnostic(builder, "BeamGage", firstOption);
             builder.AppendLine();
@@ -118,10 +154,40 @@ namespace LaserEnergyMonitor.App
             builder.AppendLine();
             builder.Append("  Status: ");
             builder.AppendLine(probe.Summary);
+            if (probe.Steps != null)
+            {
+                builder.AppendLine("  Steps:");
+                for (int i = 0; i < probe.Steps.Count; i++)
+                {
+                    MeasurementSourceRuntimeProbeStep step = probe.Steps[i];
+                    builder.Append("    [");
+                    builder.Append(step.Status ?? "UNKNOWN");
+                    builder.Append("] ");
+                    builder.Append(step.Name ?? "Step");
+                    if (!string.IsNullOrWhiteSpace(step.Details))
+                    {
+                        builder.Append(" - ");
+                        builder.Append(step.Details);
+                    }
+
+                    builder.AppendLine();
+                }
+            }
             builder.Append("  Details: ");
             builder.AppendLine(probe.Details);
             builder.Append("  Live acquisition: ");
             builder.AppendLine(option.IsImplemented ? "implemented in this build" : "not wired yet in this build");
+        }
+
+        private static MeasurementSourceDiagnostic CreateDiagnostic(string slotName, MeasurementSourceOption option)
+        {
+            return new MeasurementSourceDiagnostic
+            {
+                SlotName = slotName,
+                DisplayName = option.DisplayName,
+                IsImplemented = option.IsImplemented,
+                Probe = option.ProbeRuntime()
+            };
         }
 
         private MeasurementSourceOption GetFirstSourceOption(string key)
@@ -168,6 +234,20 @@ namespace LaserEnergyMonitor.App
 
             throw new InvalidOperationException(message.ToString());
         }
+
+        private void WriteSelfTestReport(string report)
+        {
+            string logDirectory = Path.GetDirectoryName(_logPath);
+            if (string.IsNullOrWhiteSpace(logDirectory))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(logDirectory);
+            string fileName = "hardware-self-test-" + _clock.UtcNow.ToLocalTime().ToString("yyyyMMdd-HHmmss") + ".txt";
+            string reportPath = Path.Combine(logDirectory, fileName);
+            File.WriteAllText(reportPath, report);
+        }
     }
 
     public sealed class MeasurementSourceOption
@@ -209,5 +289,16 @@ namespace LaserEnergyMonitor.App
         {
             return DisplayName;
         }
+    }
+
+    public sealed class MeasurementSourceDiagnostic
+    {
+        public string SlotName { get; set; }
+
+        public string DisplayName { get; set; }
+
+        public bool IsImplemented { get; set; }
+
+        public MeasurementSourceRuntimeProbeResult Probe { get; set; }
     }
 }

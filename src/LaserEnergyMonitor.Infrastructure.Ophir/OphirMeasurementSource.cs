@@ -1,5 +1,8 @@
 using System;
 using System.Globalization;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LaserEnergyMonitor.Domain;
@@ -107,6 +110,12 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 }
 
                 _pollingTask = null;
+
+                if (Marshal.IsComObject(_comObject))
+                {
+                    Marshal.FinalReleaseComObject(_comObject);
+                }
+
                 _comObject = null;
                 _deviceHandle = 0;
                 _channel = 0;
@@ -120,10 +129,10 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             {
                 try
                 {
-                    object[] dataResponse = InvokeWithOutputs("GetData", _deviceHandle, _channel, null, null, null);
-                    double[] data = dataResponse[2] as double[];
-                    double[] timestamps = dataResponse[3] as double[];
-                    int[] statuses = dataResponse[4] as int[];
+                    object[] dataResponse = GetDataBatch(_deviceHandle, _channel);
+                    double[] data = dataResponse[0] as double[];
+                    double[] timestamps = dataResponse[1] as double[];
+                    int[] statuses = dataResponse[2] as int[];
 
                     if (data != null && timestamps != null && statuses != null)
                     {
@@ -201,22 +210,41 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 
         private object CreateRuntimeInstance()
         {
-            Type runtimeType = Type.GetTypeFromProgID(ProgId, true);
-            return Activator.CreateInstance(runtimeType);
+            Type runtimeType = Type.GetTypeFromProgID(ProgId, false);
+            if (runtimeType == null)
+            {
+                throw new OphirPrerequisiteException(
+                    "Ophir SDK dependencies are not available on this machine." + Environment.NewLine +
+                    "Ophir COM runtime is not registered." + Environment.NewLine +
+                    "The ProgID 'OphirLMMeasurement.CoLMMeasurement' was not found." + Environment.NewLine +
+                    "Install the Ophir COM runtime or vendor automation package." + Environment.NewLine +
+                    "This application is built for x86, so the matching 32-bit vendor components must be installed.");
+            }
+
+            try
+            {
+                return Activator.CreateInstance(runtimeType);
+            }
+            catch (COMException ex)
+            {
+                throw new OphirPrerequisiteException(
+                    "The Ophir COM type was found, but activation failed." + Environment.NewLine +
+                    "Check that the vendor runtime is installed correctly and that its bitness matches the application's x86 target.",
+                    ex);
+            }
         }
 
         private string GetFirstAvailableSerialNumber()
         {
-            object[] result = InvokeWithOutputs("ScanUSB", null);
-            object serialNumbersObject = result[0];
-            object[] serialNumbers = serialNumbersObject as object[];
+            object serialNumbersObject = InvokeWithOutObject("ScanUSB");
+            Array serialNumbers = serialNumbersObject as Array;
 
             if (serialNumbers == null || serialNumbers.Length == 0)
             {
                 throw new InvalidOperationException("Ophir SDK is available, but no USB devices were found.");
             }
 
-            string serialNumber = Convert.ToString(serialNumbers[0], CultureInfo.InvariantCulture);
+            string serialNumber = Convert.ToString(serialNumbers.GetValue(0), CultureInfo.InvariantCulture);
             if (string.IsNullOrWhiteSpace(serialNumber))
             {
                 throw new InvalidOperationException("Ophir SDK returned an empty device serial number.");
@@ -227,8 +255,8 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 
         private int OpenDevice(string serialNumber)
         {
-            object[] result = InvokeWithOutputs("OpenUSBDevice", serialNumber, 0);
-            int handle = Convert.ToInt32(result[1], CultureInfo.InvariantCulture);
+            object handleObject = InvokeWithOutObject("OpenUSBDevice", serialNumber);
+            int handle = Convert.ToInt32(handleObject, CultureInfo.InvariantCulture);
             if (handle == 0)
             {
                 throw new InvalidOperationException("Ophir SDK did not return a valid device handle.");
@@ -241,8 +269,8 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         {
             for (int channel = 0; channel < 4; channel++)
             {
-                object[] result = InvokeWithOutputs("IsSensorExists", deviceHandle, channel, false);
-                bool exists = Convert.ToBoolean(result[2], CultureInfo.InvariantCulture);
+                object existsObject = InvokeWithOutObject("IsSensorExists", deviceHandle, channel);
+                bool exists = Convert.ToBoolean(existsObject, CultureInfo.InvariantCulture);
                 if (exists)
                 {
                     return channel;
@@ -269,16 +297,18 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     args,
                     CultureInfo.InvariantCulture);
             }
+            catch (TargetInvocationException ex)
+            {
+                throw CreateInvocationException(methodName, ex.InnerException ?? ex);
+            }
+            catch (COMException ex)
+            {
+                throw CreateInvocationException(methodName, ex);
+            }
             catch (Exception ex)
             {
-                throw new InvalidOperationException("Ophir SDK call failed for '" + methodName + "': " + ex.Message, ex);
+                throw CreateInvocationException(methodName, ex);
             }
-        }
-
-        private object[] InvokeWithOutputs(string methodName, params object[] args)
-        {
-            Invoke(methodName, args);
-            return args;
         }
 
         private void TryInvoke(string methodName, params object[] args)
@@ -290,6 +320,98 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             catch
             {
             }
+        }
+
+        private static Exception CreateInvocationException(string methodName, Exception ex)
+        {
+            string details = BuildExceptionDetails(ex);
+
+            if (string.Equals(methodName, "ScanUSB", StringComparison.OrdinalIgnoreCase))
+            {
+                return new InvalidOperationException(
+                    "Ophir SDK call failed for 'ScanUSB'." + Environment.NewLine +
+                    "The COM object is registered, but USB device discovery failed." + Environment.NewLine +
+                    "Typical causes: the meter is not visible to StarLab, the USB driver is missing, the device is already held by another process, or the COM runtime bitness does not match the app." + Environment.NewLine +
+                    details,
+                    ex);
+            }
+
+            return new InvalidOperationException(
+                "Ophir SDK call failed for '" + methodName + "'." + Environment.NewLine + details,
+                ex);
+        }
+
+        private static string BuildExceptionDetails(Exception ex)
+        {
+            StringBuilder builder = new StringBuilder();
+            Exception current = ex;
+            int depth = 0;
+
+            while (current != null && depth < 5)
+            {
+                if (depth > 0)
+                {
+                    builder.Append(" -> ");
+                }
+
+                builder.Append(current.GetType().FullName);
+                builder.Append(": ");
+                builder.Append(current.Message);
+
+                COMException comException = current as COMException;
+                if (comException != null)
+                {
+                    builder.Append(" (HRESULT=0x");
+                    builder.Append(comException.ErrorCode.ToString("X8", CultureInfo.InvariantCulture));
+                    builder.Append(")");
+                }
+
+                current = current.InnerException;
+                depth++;
+            }
+
+            return builder.ToString();
+        }
+
+        private object[] GetDataBatch(int deviceHandle, int channel)
+        {
+            object[] args =
+            {
+                deviceHandle,
+                channel,
+                null,
+                null,
+                null
+            };
+
+            Invoke("GetData", args);
+
+            object[] values =
+            {
+                args[2],
+                args[3],
+                args[4]
+            };
+
+            if (values[0] == null || values[1] == null || values[2] == null)
+            {
+                throw new InvalidOperationException("Ophir SDK returned an unexpected GetData payload.");
+            }
+
+            return values;
+        }
+
+        private object InvokeWithOutObject(string methodName, params object[] inputArgs)
+        {
+            object[] args = new object[inputArgs.Length + 1];
+            for (int i = 0; i < inputArgs.Length; i++)
+            {
+                args[i] = inputArgs[i];
+            }
+
+            args[args.Length - 1] = null;
+            Invoke(methodName, args);
+            return args[args.Length - 1];
         }
     }
 }

@@ -95,6 +95,14 @@ namespace LaserEnergyMonitor.Domain
         public bool DependencyAvailable { get; set; }
         public string Summary { get; set; }
         public string Details { get; set; }
+        public IList<MeasurementSourceRuntimeProbeStep> Steps { get; set; }
+    }
+
+    public sealed class MeasurementSourceRuntimeProbeStep
+    {
+        public string Name { get; set; }
+        public string Status { get; set; }
+        public string Details { get; set; }
     }
 
     public enum MeasurementSessionState

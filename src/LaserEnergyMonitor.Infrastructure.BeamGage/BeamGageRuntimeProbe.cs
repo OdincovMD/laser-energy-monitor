@@ -46,26 +46,22 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
         private static string TryLocateInstallPath()
         {
-            string[] candidates =
+            string[] roots =
             {
-                Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                    "Spiricon",
-                    "BeamGage Professional"),
-                Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-                    "Spiricon",
-                    "BeamGage Professional")
+                Environment.GetEnvironmentVariable("ProgramW6432"),
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
             };
 
-            for (int i = 0; i < candidates.Length; i++)
+            for (int i = 0; i < roots.Length; i++)
             {
-                string candidate = candidates[i];
-                if (string.IsNullOrWhiteSpace(candidate))
+                string root = roots[i];
+                if (string.IsNullOrWhiteSpace(root))
                 {
                     continue;
                 }
 
+                string candidate = Path.Combine(root, "Spiricon", "BeamGage Professional");
                 string automationPath = Path.Combine(candidate, "Spiricon.Automation.dll");
                 string beamGagePath = Path.Combine(candidate, "Spiricon.BeamGage.Automation.dll");
                 if (File.Exists(automationPath) && File.Exists(beamGagePath))
