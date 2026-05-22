@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Threading;
 using LaserEnergyMonitor.Application;
 using LaserEnergyMonitor.Domain;
 using LaserEnergyMonitor.Infrastructure;
@@ -14,17 +17,22 @@ namespace LaserEnergyMonitor.App
 {
     public sealed class MeasurementSessionRuntimeFactory
     {
+        private const string OphirSdkSourceKey = "ophir-sdk";
         private readonly string _logPath;
         private readonly IOperatorNotifier _notifier;
         private readonly IClock _clock;
         private readonly IReadOnlyList<MeasurementSourceOption> _firstSourceOptions;
         private readonly IReadOnlyList<MeasurementSourceOption> _secondSourceOptions;
+        private readonly OphirMeasurementOptions _ophirOptions;
+        private readonly TimeSpan _ophirSmokeTestDuration;
 
         public MeasurementSessionRuntimeFactory(string logPath, IOperatorNotifier notifier, IClock clock)
         {
             _logPath = logPath;
             _notifier = notifier;
             _clock = clock;
+            _ophirOptions = LoadOphirOptions(logPath);
+            _ophirSmokeTestDuration = LoadOphirSmokeTestDuration();
 
             _firstSourceOptions = new[]
             {
@@ -64,9 +72,23 @@ namespace LaserEnergyMonitor.App
                     "ophir-sdk",
                     "Ophir SDK",
                     true,
-                    () => new OphirMeasurementSource(),
+                    () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions)),
                     OphirRuntimeProbe.Probe)
             };
+
+            if (!string.IsNullOrWhiteSpace(_ophirOptions.ReplayFilePath))
+            {
+                _secondSourceOptions = _secondSourceOptions.Concat(
+                    new[]
+                    {
+                        new MeasurementSourceOption(
+                            "ophir-replay",
+                            "Ophir Replay Capture",
+                            true,
+                            () => new OphirReplayMeasurementSource(CloneOphirOptions(_ophirOptions)),
+                            () => ProbeOphirReplay(_ophirOptions.ReplayFilePath))
+                    }).ToArray();
+            }
         }
 
         public IReadOnlyList<MeasurementSourceOption> FirstSourceOptions
@@ -136,6 +158,152 @@ namespace LaserEnergyMonitor.App
             return report;
         }
 
+        public string RunOphirSmokeTest(string selectedSecondSourceKey)
+        {
+            MeasurementSourceOption selectedOption = GetSecondSourceOption(selectedSecondSourceKey);
+            MeasurementSourceOption ophirSdkOption = GetSecondSourceOption(OphirSdkSourceKey);
+            MeasurementSourceRuntimeProbeResult probe = ophirSdkOption.ProbeRuntime();
+            StringBuilder builder = new StringBuilder();
+            builder.Append("Ophir smoke-test generated at ");
+            builder.Append(_clock.UtcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+            builder.AppendLine();
+            builder.Append("Selected UI source: ");
+            builder.AppendLine(selectedOption.DisplayName);
+            builder.Append("Executed source: ");
+            builder.AppendLine(ophirSdkOption.DisplayName);
+            builder.AppendLine("Mode: Forced real SDK smoke-test");
+            builder.Append("Duration: ");
+            builder.AppendLine(_ophirSmokeTestDuration.ToString());
+            builder.Append("Configured serial: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_ophirOptions.DeviceSerialNumber) ? "auto-first-detected" : _ophirOptions.DeviceSerialNumber);
+            builder.Append("Configured preferred channel: ");
+            builder.AppendLine(_ophirOptions.PreferredChannel.HasValue ? _ophirOptions.PreferredChannel.Value.ToString() : "auto-first-active");
+            builder.Append("Configured poll interval: ");
+            builder.AppendLine(_ophirOptions.PollInterval.ToString());
+            builder.Append("Configured timestamp strategy: ");
+            builder.AppendLine(_ophirOptions.TimestampStrategy.ToString());
+            builder.Append("Capture directory: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_ophirOptions.CaptureDirectoryPath) ? "disabled" : _ophirOptions.CaptureDirectoryPath);
+            builder.Append("Replay file: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_ophirOptions.ReplayFilePath) ? "not configured" : _ophirOptions.ReplayFilePath);
+            builder.AppendLine();
+            builder.Append("Runtime probe summary: ");
+            builder.AppendLine(probe.Summary);
+            AppendProbeSteps(builder, probe);
+            builder.Append("Runtime probe details: ");
+            builder.AppendLine(probe.Details);
+            builder.AppendLine();
+
+            int sampleCount = 0;
+            double? minEnergy = null;
+            double? maxEnergy = null;
+            DateTime? firstTimestampUtc = null;
+            DateTime? lastTimestampUtc = null;
+            DeviceFault fault = null;
+            string outcome;
+            Exception executionException = null;
+
+            bool sdkUnavailable = !probe.DependencyAvailable;
+            bool noUsbDevicesDetected = string.Equals(
+                probe.Summary,
+                "Ophir COM runtime is functional. No USB devices are currently visible.",
+                StringComparison.OrdinalIgnoreCase);
+
+            if (sdkUnavailable)
+            {
+                outcome = "Runtime unavailable. Acquisition was not attempted.";
+            }
+            else if (noUsbDevicesDetected)
+            {
+                outcome = "Runtime available, but no USB devices are currently visible. Acquisition was skipped.";
+            }
+            else
+            {
+                try
+                {
+                    using (IMeasurementSource source = ophirSdkOption.CreateSource())
+                    {
+                        source.MeasurementReceived += delegate(object sender, MeasurementReceivedEventArgs args)
+                        {
+                            MeasurementSample sample = args.Sample;
+                            sampleCount += 1;
+                            if (!firstTimestampUtc.HasValue)
+                            {
+                                firstTimestampUtc = sample.TimestampUtc;
+                            }
+
+                            lastTimestampUtc = sample.TimestampUtc;
+                            minEnergy = !minEnergy.HasValue ? sample.Energy : Math.Min(minEnergy.Value, sample.Energy);
+                            maxEnergy = !maxEnergy.HasValue ? sample.Energy : Math.Max(maxEnergy.Value, sample.Energy);
+                        };
+
+                        source.Faulted += delegate(object sender, DeviceFaultEventArgs args)
+                        {
+                            fault = args != null ? args.Fault : null;
+                        };
+
+                        source.Initialize();
+                        source.Start();
+                        Thread.Sleep(_ophirSmokeTestDuration);
+                        source.Stop();
+                    }
+
+                    if (fault != null)
+                    {
+                        outcome = "Streaming fault reported by Ophir source.";
+                    }
+                    else if (sampleCount > 0)
+                    {
+                        outcome = "Live samples were received from the real Ophir SDK source.";
+                    }
+                    else
+                    {
+                        outcome = "SDK calls completed, but no samples were received during the smoke-test window.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    executionException = ex;
+                    outcome = "Acquisition attempt failed before live samples were confirmed.";
+                }
+            }
+
+            builder.Append("Outcome: ");
+            builder.AppendLine(outcome);
+            builder.Append("Samples captured: ");
+            builder.AppendLine(sampleCount.ToString());
+            builder.Append("First sample UTC: ");
+            builder.AppendLine(firstTimestampUtc.HasValue ? firstTimestampUtc.Value.ToString("O") : "n/a");
+            builder.Append("Last sample UTC: ");
+            builder.AppendLine(lastTimestampUtc.HasValue ? lastTimestampUtc.Value.ToString("O") : "n/a");
+            builder.Append("Energy min/max: ");
+            builder.AppendLine(
+                minEnergy.HasValue && maxEnergy.HasValue
+                    ? minEnergy.Value.ToString("0.000000") + " / " + maxEnergy.Value.ToString("0.000000")
+                    : "n/a");
+
+            if (fault != null)
+            {
+                builder.Append("Fault: ");
+                builder.AppendLine(fault.Message);
+            }
+            else
+            {
+                builder.AppendLine("Fault: none");
+            }
+
+            if (executionException != null)
+            {
+                builder.Append("Exception: ");
+                builder.AppendLine(executionException.Message);
+            }
+
+            string report = builder.ToString().Trim();
+            new FileApplicationLogger(_logPath).Info("Ophir smoke-test completed." + Environment.NewLine + report);
+            WriteSmokeTestReport(report, "ophir-smoke-test");
+            return report;
+        }
+
         private static string BuildDiagnosticsReport(MeasurementSourceOption firstOption, MeasurementSourceOption secondOption)
         {
             StringBuilder builder = new StringBuilder();
@@ -190,6 +358,31 @@ namespace LaserEnergyMonitor.App
             };
         }
 
+        private static void AppendProbeSteps(StringBuilder builder, MeasurementSourceRuntimeProbeResult probe)
+        {
+            if (probe == null || probe.Steps == null || probe.Steps.Count == 0)
+            {
+                return;
+            }
+
+            builder.AppendLine("Runtime probe steps:");
+            for (int i = 0; i < probe.Steps.Count; i++)
+            {
+                MeasurementSourceRuntimeProbeStep step = probe.Steps[i];
+                builder.Append("  [");
+                builder.Append(step.Status ?? "UNKNOWN");
+                builder.Append("] ");
+                builder.Append(step.Name ?? "Step");
+                if (!string.IsNullOrWhiteSpace(step.Details))
+                {
+                    builder.Append(" - ");
+                    builder.Append(step.Details);
+                }
+
+                builder.AppendLine();
+            }
+        }
+
         private MeasurementSourceOption GetFirstSourceOption(string key)
         {
             return GetOption(_firstSourceOptions, key, "first");
@@ -237,6 +430,11 @@ namespace LaserEnergyMonitor.App
 
         private void WriteSelfTestReport(string report)
         {
+            WriteSmokeTestReport(report, "hardware-self-test");
+        }
+
+        private void WriteSmokeTestReport(string report, string filePrefix)
+        {
             string logDirectory = Path.GetDirectoryName(_logPath);
             if (string.IsNullOrWhiteSpace(logDirectory))
             {
@@ -244,9 +442,123 @@ namespace LaserEnergyMonitor.App
             }
 
             Directory.CreateDirectory(logDirectory);
-            string fileName = "hardware-self-test-" + _clock.UtcNow.ToLocalTime().ToString("yyyyMMdd-HHmmss") + ".txt";
+            string fileName = filePrefix + "-" + _clock.UtcNow.ToLocalTime().ToString("yyyyMMdd-HHmmss") + ".txt";
             string reportPath = Path.Combine(logDirectory, fileName);
             File.WriteAllText(reportPath, report);
+        }
+
+        private static OphirMeasurementOptions LoadOphirOptions(string logPath)
+        {
+            OphirMeasurementOptions options = OphirMeasurementOptions.Default;
+            options.DeviceSerialNumber = ReadAppSetting("MeasurementSources.OphirSerialNumber");
+            options.PreferredChannel = ParseNullableInt(ReadAppSetting("MeasurementSources.OphirPreferredChannel"));
+            options.TimestampStrategy = ParseTimestampStrategy(ReadAppSetting("MeasurementSources.OphirTimestampStrategy"));
+            options.ReplayFilePath = ReadAppSetting("MeasurementSources.OphirReplayPath");
+            options.ReplaySpeedMultiplier = ParseDouble(ReadAppSetting("MeasurementSources.OphirReplaySpeedMultiplier"), 1.0d);
+
+            double pollIntervalMs = ParseDouble(ReadAppSetting("MeasurementSources.OphirPollIntervalMs"), 50.0d);
+            if (pollIntervalMs < 1.0d)
+            {
+                pollIntervalMs = 1.0d;
+            }
+
+            options.PollInterval = TimeSpan.FromMilliseconds(pollIntervalMs);
+            string captureDirectory = ReadAppSetting("MeasurementSources.OphirCaptureDirectory");
+            if (!string.IsNullOrWhiteSpace(captureDirectory))
+            {
+                options.CaptureDirectoryPath = captureDirectory;
+            }
+            else
+            {
+                string logDirectory = Path.GetDirectoryName(logPath);
+                if (!string.IsNullOrWhiteSpace(logDirectory))
+                {
+                    options.CaptureDirectoryPath = Path.Combine(logDirectory, "ophir-captures");
+                }
+            }
+
+            return options;
+        }
+
+        private static TimeSpan LoadOphirSmokeTestDuration()
+        {
+            double durationMs = ParseDouble(ReadAppSetting("MeasurementSources.OphirSmokeTestDurationMs"), 1500.0d);
+            if (durationMs < 100.0d)
+            {
+                durationMs = 100.0d;
+            }
+
+            return TimeSpan.FromMilliseconds(durationMs);
+        }
+
+        private static OphirMeasurementOptions CloneOphirOptions(OphirMeasurementOptions options)
+        {
+            return new OphirMeasurementOptions
+            {
+                DeviceSerialNumber = options.DeviceSerialNumber,
+                PreferredChannel = options.PreferredChannel,
+                PollInterval = options.PollInterval,
+                TimestampStrategy = options.TimestampStrategy,
+                CaptureDirectoryPath = options.CaptureDirectoryPath,
+                ReplayFilePath = options.ReplayFilePath,
+                ReplaySpeedMultiplier = options.ReplaySpeedMultiplier
+            };
+        }
+
+        private static MeasurementSourceRuntimeProbeResult ProbeOphirReplay(string replayFilePath)
+        {
+            bool exists = !string.IsNullOrWhiteSpace(replayFilePath) && File.Exists(replayFilePath);
+            return new MeasurementSourceRuntimeProbeResult
+            {
+                DependencyAvailable = exists,
+                Summary = exists
+                    ? "Replay capture file is available."
+                    : "Replay capture file is missing.",
+                Details = exists
+                    ? replayFilePath
+                    : "Configure MeasurementSources.OphirReplayPath to a valid capture CSV file.",
+                Steps = new[]
+                {
+                    new MeasurementSourceRuntimeProbeStep
+                    {
+                        Name = "Replay file",
+                        Status = exists ? "PASS" : "FAIL",
+                        Details = replayFilePath ?? string.Empty
+                    }
+                }
+            };
+        }
+
+        private static string ReadAppSetting(string key)
+        {
+            return ConfigurationManager.AppSettings[key];
+        }
+
+        private static int? ParseNullableInt(string value)
+        {
+            int parsed;
+            if (int.TryParse(value, out parsed))
+            {
+                return parsed;
+            }
+
+            return null;
+        }
+
+        private static double ParseDouble(string value, double fallback)
+        {
+            double parsed;
+            return double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out parsed)
+                ? parsed
+                : fallback;
+        }
+
+        private static OphirTimestampStrategy ParseTimestampStrategy(string value)
+        {
+            OphirTimestampStrategy parsed;
+            return Enum.TryParse(value, true, out parsed)
+                ? parsed
+                : OphirTimestampStrategy.HostArrivalUtc;
         }
     }
 

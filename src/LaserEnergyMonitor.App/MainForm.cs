@@ -40,6 +40,7 @@ namespace LaserEnergyMonitor.App
         private Button _clearEventsButton;
         private Button _initializeButton;
         private Button _selfTestButton;
+        private Button _ophirSmokeTestButton;
         private Button _startButton;
         private Button _stopButton;
         private DeviceStatusView _beamStatusView;
@@ -79,7 +80,7 @@ namespace LaserEnergyMonitor.App
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 430));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 430));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 540));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             Controls.Add(root);
 
@@ -94,8 +95,15 @@ namespace LaserEnergyMonitor.App
             settingsGroup.Font = new Font(Font, FontStyle.Bold);
             root.Controls.Add(settingsGroup, 0, 1);
 
+            Panel settingsScrollPanel = new Panel();
+            settingsScrollPanel.Dock = DockStyle.Fill;
+            settingsScrollPanel.AutoScroll = true;
+            settingsGroup.Controls.Add(settingsScrollPanel);
+
             TableLayoutPanel settingsLayout = new TableLayoutPanel();
-            settingsLayout.Dock = DockStyle.Fill;
+            settingsLayout.Dock = DockStyle.Top;
+            settingsLayout.AutoSize = true;
+            settingsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             settingsLayout.ColumnCount = 2;
             settingsLayout.RowCount = 10;
             settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 165));
@@ -106,8 +114,8 @@ namespace LaserEnergyMonitor.App
             }
 
             settingsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));
-            settingsGroup.Controls.Add(settingsLayout);
+            settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 196));
+            settingsScrollPanel.Controls.Add(settingsLayout);
 
             _firstSourceComboBox = CreateSourceComboBox(_runtimeFactory.FirstSourceOptions, "beam-sim");
             _secondSourceComboBox = CreateSourceComboBox(_runtimeFactory.SecondSourceOptions, "ophir-sim");
@@ -144,17 +152,21 @@ namespace LaserEnergyMonitor.App
 
             TableLayoutPanel buttonsPanel = new TableLayoutPanel();
             buttonsPanel.Dock = DockStyle.Fill;
-            buttonsPanel.ColumnCount = 2;
-            buttonsPanel.RowCount = 2;
-            buttonsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            buttonsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            buttonsPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-            buttonsPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            buttonsPanel.ColumnCount = 1;
+            buttonsPanel.RowCount = 5;
+            buttonsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            buttonsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            buttonsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            buttonsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            buttonsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            buttonsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
 
             _initializeButton = new Button();
             _initializeButton.Text = "Initialize";
             _selfTestButton = new Button();
             _selfTestButton.Text = "Run Self-Test";
+            _ophirSmokeTestButton = new Button();
+            _ophirSmokeTestButton.Text = "Ophir Smoke-Test";
             _startButton = new Button();
             _startButton.Text = "Start";
             _stopButton = new Button();
@@ -162,13 +174,15 @@ namespace LaserEnergyMonitor.App
 
             ApplyPrimaryButtonStyle(_initializeButton, false);
             ApplyPrimaryButtonStyle(_selfTestButton, false);
+            ApplyPrimaryButtonStyle(_ophirSmokeTestButton, false);
             ApplyPrimaryButtonStyle(_startButton, true);
             ApplyPrimaryButtonStyle(_stopButton, false);
 
             buttonsPanel.Controls.Add(_initializeButton, 0, 0);
-            buttonsPanel.Controls.Add(_selfTestButton, 1, 0);
-            buttonsPanel.Controls.Add(_startButton, 0, 1);
-            buttonsPanel.Controls.Add(_stopButton, 1, 1);
+            buttonsPanel.Controls.Add(_selfTestButton, 0, 1);
+            buttonsPanel.Controls.Add(_ophirSmokeTestButton, 0, 2);
+            buttonsPanel.Controls.Add(_startButton, 0, 3);
+            buttonsPanel.Controls.Add(_stopButton, 0, 4);
             AddLabeledControl(settingsLayout, 9, "Actions", buttonsPanel);
 
             GroupBox liveGroup = new GroupBox();
@@ -255,6 +269,7 @@ namespace LaserEnergyMonitor.App
         {
             _initializeButton.Click += OnInitializeClicked;
             _selfTestButton.Click += OnSelfTestClicked;
+            _ophirSmokeTestButton.Click += OnOphirSmokeTestClicked;
             _startButton.Click += OnStartClicked;
             _stopButton.Click += OnStopClicked;
             _firstSourceComboBox.SelectedIndexChanged += OnSourceSelectionChanged;
@@ -350,6 +365,21 @@ namespace LaserEnergyMonitor.App
                 {
                     _outputPathTextBox.Text = dialog.FileName;
                 }
+            }
+        }
+
+        private void OnOphirSmokeTestClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                string report = _runtimeFactory.RunOphirSmokeTest(GetSelectedSourceKey(_secondSourceComboBox));
+                _sourceDiagnosticsTextBox.Text = report;
+                AddEvent("Ophir smoke-test completed.");
+                MessageBox.Show(report, "Ophir Smoke-Test", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Ophir smoke-test error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -797,11 +827,11 @@ namespace LaserEnergyMonitor.App
         {
             button.Dock = DockStyle.Fill;
             button.AutoSize = false;
-            button.Height = 38;
+            button.Height = 34;
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderSize = 0;
-            button.Margin = new Padding(4);
-            button.Font = new Font("Segoe UI Semibold", 9.0f, FontStyle.Bold, GraphicsUnit.Point);
+            button.Margin = new Padding(3);
+            button.Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold, GraphicsUnit.Point);
             button.BackColor = accent ? Color.FromArgb(47, 109, 214) : Color.FromArgb(230, 236, 244);
             button.ForeColor = accent ? Color.White : Color.FromArgb(33, 42, 53);
         }

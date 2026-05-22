@@ -12,7 +12,8 @@ The Ophir integration currently performs a prerequisite probe before any live ac
 
 - `Initialize()` checks whether `OphirLMMeasurement.CoLMMeasurement` is registered.
 - If the ProgID is missing, the app raises a clear prerequisite error instead of a generic COM activation failure.
-- If the ProgID exists, the app can create the COM object, but streaming measurements are still not implemented in the repository yet.
+- If the ProgID exists, the app can create the COM object, probe USB visibility, and run a short smoke-test against the real SDK source.
+- If the device is visible, the app can attempt short live acquisition and optionally capture raw samples into CSV for later replay.
 
 ## App bootstrap mode
 
@@ -21,4 +22,15 @@ The WinForms app reads per-source settings from `src/LaserEnergyMonitor.App/App.
 - `MeasurementSources.BeamGageMode=simulation|hardware`
 - `MeasurementSources.OphirMode=simulation|hardware`
 
-Set `MeasurementSources.OphirMode=hardware` when you want to probe only the real Ophir adapter. If the vendor runtime is missing, the app now reports that prerequisite explicitly.
+Relevant settings now include:
+
+- `MeasurementSources.OphirSerialNumber`
+- `MeasurementSources.OphirPreferredChannel`
+- `MeasurementSources.OphirPollIntervalMs`
+- `MeasurementSources.OphirTimestampStrategy`
+- `MeasurementSources.OphirCaptureDirectory`
+- `MeasurementSources.OphirReplayPath`
+- `MeasurementSources.OphirReplaySpeedMultiplier`
+- `MeasurementSources.OphirSmokeTestDurationMs`
+
+See [ophir-integration-checklist.md](C:/Users/hardb/laser-energy-monitor/docs/ophir-integration-checklist.md) before the first customer-side live test.

@@ -4,6 +4,7 @@
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="System.Configuration" />
     <ProjectReference Include="..\LaserEnergyMonitor.Application\LaserEnergyMonitor.Application.csproj" />
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure\LaserEnergyMonitor.Infrastructure.csproj" />
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.BeamGage\LaserEnergyMonitor.Infrastructure.BeamGage.csproj" />
