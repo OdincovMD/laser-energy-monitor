@@ -37,6 +37,8 @@ namespace LaserEnergyMonitor.Domain
         public double EnterThresholdPercent { get; set; }
         public double ExitThresholdPercent { get; set; }
         public TimeSpan SynchronizationDelta { get; set; }
+        public int MaxConsecutiveDesynchronizations { get; set; }
+        public DesynchronizationPolicyAction DesynchronizationPolicyAction { get; set; }
         public string OutputPath { get; set; }
         public string SessionName { get; set; }
     }
@@ -55,14 +57,40 @@ namespace LaserEnergyMonitor.Domain
         public DateTime FinishedUtc { get; set; }
         public int PairCount { get; set; }
         public int EventCount { get; set; }
+        public int DesynchronizationCount { get; set; }
+        public int FaultCount { get; set; }
+        public int StationarySegmentCount { get; set; }
+        public int ClosedStationarySegmentCount { get; set; }
+        public DateTime? LastDesynchronizationUtc { get; set; }
+        public DateTime? LastFaultUtc { get; set; }
         public bool CompletedNormally { get; set; }
         public string FinalState { get; set; }
+        public string TerminationReasonCode { get; set; }
+        public string TerminationReason { get; set; }
+    }
+
+    public sealed class StationarySegmentResult
+    {
+        public int SegmentId { get; set; }
+        public long EntryPairId { get; set; }
+        public DateTime EntryTimestampUtc { get; set; }
+        public double EntryFirstEnergy { get; set; }
+        public double EntrySecondEnergy { get; set; }
+        public double EntryFirstAverage { get; set; }
+        public double EntrySecondAverage { get; set; }
+        public double EntryStabilityMetric { get; set; }
+        public long? ExitPairId { get; set; }
+        public DateTime? ExitTimestampUtc { get; set; }
+        public double? ExitStabilityMetric { get; set; }
+        public double? DurationMs { get; set; }
+        public string ExitReason { get; set; }
     }
 
     public sealed class SessionEvent
     {
         public SessionEventType EventType { get; set; }
         public DateTime TimestampUtc { get; set; }
+        public string ReasonCode { get; set; }
         public string Message { get; set; }
         public long? SequenceNumber { get; set; }
         public double? MetricValue { get; set; }
@@ -72,6 +100,7 @@ namespace LaserEnergyMonitor.Domain
     {
         public string SourceId { get; set; }
         public FaultSeverity Severity { get; set; }
+        public string ReasonCode { get; set; }
         public string Message { get; set; }
         public DateTime TimestampUtc { get; set; }
         public Exception Exception { get; set; }
@@ -130,5 +159,12 @@ namespace LaserEnergyMonitor.Domain
     {
         Warning = 0,
         Critical = 1
+    }
+
+    public enum DesynchronizationPolicyAction
+    {
+        LogOnly = 0,
+        StopGracefully = 1,
+        FaultSession = 2
     }
 }

@@ -38,8 +38,9 @@ namespace LaserEnergyMonitor.Domain
         void StartSession(SessionMetadata metadata, SessionSettings settings);
         void WriteMeasurement(SynchronizedMeasurementPair pair, StationarityUpdate update);
         void WriteEvent(SessionEvent sessionEvent);
+        void WriteStationarySegment(StationarySegmentResult segment);
         void Complete(SessionSummary summary);
-        void Abort(string reason);
+        void Abort(SessionSummary summary, string reason);
     }
 
     public interface IApplicationLogger
@@ -132,5 +133,25 @@ namespace LaserEnergyMonitor.Domain
         }
 
         public SessionEvent SessionEvent { get; private set; }
+    }
+
+    public sealed class StationarySegmentRecordedEventArgs : EventArgs
+    {
+        public StationarySegmentRecordedEventArgs(StationarySegmentResult segment)
+        {
+            Segment = segment;
+        }
+
+        public StationarySegmentResult Segment { get; private set; }
+    }
+
+    public sealed class SessionSummaryAvailableEventArgs : EventArgs
+    {
+        public SessionSummaryAvailableEventArgs(SessionSummary summary)
+        {
+            Summary = summary;
+        }
+
+        public SessionSummary Summary { get; private set; }
     }
 }

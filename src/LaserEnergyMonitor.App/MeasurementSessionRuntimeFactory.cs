@@ -17,12 +17,15 @@ namespace LaserEnergyMonitor.App
 {
     public sealed class MeasurementSessionRuntimeFactory
     {
+        private const string BeamGageSdkSourceKey = "beam-sdk";
         private const string OphirSdkSourceKey = "ophir-sdk";
         private readonly string _logPath;
         private readonly IOperatorNotifier _notifier;
         private readonly IClock _clock;
         private readonly IReadOnlyList<MeasurementSourceOption> _firstSourceOptions;
         private readonly IReadOnlyList<MeasurementSourceOption> _secondSourceOptions;
+        private readonly BeamGageMeasurementOptions _beamGageOptions;
+        private readonly TimeSpan _beamGageSmokeTestDuration;
         private readonly OphirMeasurementOptions _ophirOptions;
         private readonly TimeSpan _ophirSmokeTestDuration;
 
@@ -31,6 +34,8 @@ namespace LaserEnergyMonitor.App
             _logPath = logPath;
             _notifier = notifier;
             _clock = clock;
+            _beamGageOptions = LoadBeamGageOptions();
+            _beamGageSmokeTestDuration = LoadBeamGageSmokeTestDuration();
             _ophirOptions = LoadOphirOptions(logPath);
             _ophirSmokeTestDuration = LoadOphirSmokeTestDuration();
 
@@ -50,8 +55,8 @@ namespace LaserEnergyMonitor.App
                 new MeasurementSourceOption(
                     "beam-sdk",
                     "BeamGage SDK",
-                    false,
-                    () => new BeamGageMeasurementSource(),
+                    true,
+                    () => new BeamGageMeasurementSource(CloneBeamGageOptions(_beamGageOptions)),
                     BeamGageRuntimeProbe.Probe)
             };
 
@@ -304,6 +309,164 @@ namespace LaserEnergyMonitor.App
             return report;
         }
 
+        public string RunBeamGageSmokeTest(string selectedFirstSourceKey)
+        {
+            MeasurementSourceOption selectedOption = GetFirstSourceOption(selectedFirstSourceKey);
+            MeasurementSourceOption beamGageSdkOption = GetFirstSourceOption(BeamGageSdkSourceKey);
+            MeasurementSourceRuntimeProbeResult probe = beamGageSdkOption.ProbeRuntime();
+            StringBuilder builder = new StringBuilder();
+            builder.Append("BeamGage smoke-test generated at ");
+            builder.Append(_clock.UtcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+            builder.AppendLine();
+            builder.Append("Selected UI source: ");
+            builder.AppendLine(selectedOption.DisplayName);
+            builder.Append("Executed source: ");
+            builder.AppendLine(beamGageSdkOption.DisplayName);
+            builder.AppendLine("Mode: Forced real SDK smoke-test");
+            builder.Append("Duration: ");
+            builder.AppendLine(_beamGageSmokeTestDuration.ToString());
+            builder.Append("Configured automation instance: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.AutomationInstanceId) ? "default" : _beamGageOptions.AutomationInstanceId);
+            builder.Append("Configured show GUI: ");
+            builder.AppendLine(_beamGageOptions.ShowGui ? "true" : "false");
+            builder.Append("Configured data source: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.DataSource) ? "auto-first-available" : _beamGageOptions.DataSource);
+            builder.Append("Configured power meter: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.PowerMeter) ? "auto-first-available" : _beamGageOptions.PowerMeter);
+            builder.Append("Configured wavelength: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.WaveLength) ? "auto-first-available" : _beamGageOptions.WaveLength);
+            builder.Append("Configured timestamp strategy: ");
+            builder.AppendLine(_beamGageOptions.TimestampStrategy.ToString());
+            builder.AppendLine();
+            builder.Append("Runtime probe summary: ");
+            builder.AppendLine(probe.Summary);
+            AppendProbeSteps(builder, probe);
+            builder.Append("Runtime probe details: ");
+            builder.AppendLine(probe.Details);
+            builder.AppendLine();
+
+            int sampleCount = 0;
+            double? minEnergy = null;
+            double? maxEnergy = null;
+            DateTime? firstTimestampUtc = null;
+            DateTime? lastTimestampUtc = null;
+            DeviceFault fault = null;
+            string resolvedDataSource = string.Empty;
+            string resolvedPowerMeter = string.Empty;
+            string resolvedWaveLength = string.Empty;
+            string resolvedStatus = string.Empty;
+            bool resolvedOnline = false;
+            string outcome;
+            Exception executionException = null;
+
+            if (!probe.DependencyAvailable)
+            {
+                outcome = "Runtime unavailable. Acquisition was not attempted.";
+            }
+            else
+            {
+                try
+                {
+                    BeamGageMeasurementSource source = (BeamGageMeasurementSource)beamGageSdkOption.CreateSource();
+                    using (source)
+                    {
+                        source.MeasurementReceived += delegate(object sender, MeasurementReceivedEventArgs args)
+                        {
+                            MeasurementSample sample = args.Sample;
+                            sampleCount += 1;
+                            if (!firstTimestampUtc.HasValue)
+                            {
+                                firstTimestampUtc = sample.TimestampUtc;
+                            }
+
+                            lastTimestampUtc = sample.TimestampUtc;
+                            minEnergy = !minEnergy.HasValue ? sample.Energy : Math.Min(minEnergy.Value, sample.Energy);
+                            maxEnergy = !maxEnergy.HasValue ? sample.Energy : Math.Max(maxEnergy.Value, sample.Energy);
+                        };
+
+                        source.Faulted += delegate(object sender, DeviceFaultEventArgs args)
+                        {
+                            fault = args != null ? args.Fault : null;
+                        };
+
+                        source.Initialize();
+                        resolvedDataSource = source.CurrentDataSource;
+                        resolvedPowerMeter = source.CurrentPowerMeter;
+                        resolvedWaveLength = source.CurrentWaveLength;
+                        resolvedStatus = source.CurrentDataSourceStatus;
+                        resolvedOnline = source.IsSourceOnline;
+                        source.Start();
+                        Thread.Sleep(_beamGageSmokeTestDuration);
+                        source.Stop();
+                    }
+
+                    if (fault != null)
+                    {
+                        outcome = "Streaming fault reported by BeamGage source.";
+                    }
+                    else if (sampleCount > 0)
+                    {
+                        outcome = "Live samples were received from the BeamGage SDK source.";
+                    }
+                    else
+                    {
+                        outcome = "BeamGage SDK started, but no samples were received during the smoke-test window.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    executionException = ex;
+                    outcome = "Acquisition attempt failed before live samples were confirmed.";
+                }
+            }
+
+            builder.Append("Resolved data source: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(resolvedDataSource) ? "n/a" : resolvedDataSource);
+            builder.Append("Resolved power meter: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(resolvedPowerMeter) ? "n/a" : resolvedPowerMeter);
+            builder.Append("Resolved wavelength: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(resolvedWaveLength) ? "n/a" : resolvedWaveLength);
+            builder.Append("Resolved source status: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(resolvedStatus) ? "n/a" : resolvedStatus);
+            builder.Append("Resolved online flag: ");
+            builder.AppendLine(resolvedStatus == string.Empty && !resolvedOnline ? "n/a" : (resolvedOnline ? "true" : "false"));
+            builder.AppendLine();
+            builder.Append("Outcome: ");
+            builder.AppendLine(outcome);
+            builder.Append("Samples captured: ");
+            builder.AppendLine(sampleCount.ToString());
+            builder.Append("First sample UTC: ");
+            builder.AppendLine(firstTimestampUtc.HasValue ? firstTimestampUtc.Value.ToString("O") : "n/a");
+            builder.Append("Last sample UTC: ");
+            builder.AppendLine(lastTimestampUtc.HasValue ? lastTimestampUtc.Value.ToString("O") : "n/a");
+            builder.Append("Energy min/max: ");
+            builder.AppendLine(
+                minEnergy.HasValue && maxEnergy.HasValue
+                    ? minEnergy.Value.ToString("0.000000") + " / " + maxEnergy.Value.ToString("0.000000")
+                    : "n/a");
+
+            if (fault != null)
+            {
+                builder.Append("Fault: ");
+                builder.AppendLine(fault.Message);
+            }
+            else
+            {
+                builder.AppendLine("Fault: none");
+            }
+
+            if (executionException != null)
+            {
+                builder.Append("Exception: ");
+                builder.AppendLine(executionException.Message);
+            }
+
+            string report = builder.ToString().Trim();
+            new FileApplicationLogger(_logPath).Info("BeamGage smoke-test completed." + Environment.NewLine + report);
+            WriteSmokeTestReport(report, "beamgage-smoke-test");
+            return report;
+        }
+
         private static string BuildDiagnosticsReport(MeasurementSourceOption firstOption, MeasurementSourceOption secondOption)
         {
             StringBuilder builder = new StringBuilder();
@@ -491,6 +654,17 @@ namespace LaserEnergyMonitor.App
             return TimeSpan.FromMilliseconds(durationMs);
         }
 
+        private static TimeSpan LoadBeamGageSmokeTestDuration()
+        {
+            double durationMs = ParseDouble(ReadAppSetting("MeasurementSources.BeamGageSmokeTestDurationMs"), 1500.0d);
+            if (durationMs < 100.0d)
+            {
+                durationMs = 100.0d;
+            }
+
+            return TimeSpan.FromMilliseconds(durationMs);
+        }
+
         private static OphirMeasurementOptions CloneOphirOptions(OphirMeasurementOptions options)
         {
             return new OphirMeasurementOptions
@@ -534,6 +708,37 @@ namespace LaserEnergyMonitor.App
             return ConfigurationManager.AppSettings[key];
         }
 
+        private static BeamGageMeasurementOptions LoadBeamGageOptions()
+        {
+            BeamGageMeasurementOptions options = BeamGageMeasurementOptions.Default;
+            options.AutomationInstanceId = ReadAppSetting("MeasurementSources.BeamGageInstanceId");
+            options.ShowGui = ParseBool(ReadAppSetting("MeasurementSources.BeamGageShowGui"), false);
+            options.DataSource = ReadAppSetting("MeasurementSources.BeamGageDataSource");
+            options.PowerMeter = ReadAppSetting("MeasurementSources.BeamGagePowerMeter");
+            options.WaveLength = ReadAppSetting("MeasurementSources.BeamGageWaveLength");
+            options.TimestampStrategy = ParseBeamGageTimestampStrategy(ReadAppSetting("MeasurementSources.BeamGageTimestampStrategy"));
+
+            if (string.IsNullOrWhiteSpace(options.AutomationInstanceId))
+            {
+                options.AutomationInstanceId = BeamGageMeasurementOptions.Default.AutomationInstanceId;
+            }
+
+            return options;
+        }
+
+        private static BeamGageMeasurementOptions CloneBeamGageOptions(BeamGageMeasurementOptions options)
+        {
+            return new BeamGageMeasurementOptions
+            {
+                AutomationInstanceId = options.AutomationInstanceId,
+                ShowGui = options.ShowGui,
+                DataSource = options.DataSource,
+                PowerMeter = options.PowerMeter,
+                WaveLength = options.WaveLength,
+                TimestampStrategy = options.TimestampStrategy
+            };
+        }
+
         private static int? ParseNullableInt(string value)
         {
             int parsed;
@@ -543,6 +748,12 @@ namespace LaserEnergyMonitor.App
             }
 
             return null;
+        }
+
+        private static bool ParseBool(string value, bool fallback)
+        {
+            bool parsed;
+            return bool.TryParse(value, out parsed) ? parsed : fallback;
         }
 
         private static double ParseDouble(string value, double fallback)
@@ -559,6 +770,14 @@ namespace LaserEnergyMonitor.App
             return Enum.TryParse(value, true, out parsed)
                 ? parsed
                 : OphirTimestampStrategy.HostArrivalUtc;
+        }
+
+        private static BeamGageTimestampStrategy ParseBeamGageTimestampStrategy(string value)
+        {
+            BeamGageTimestampStrategy parsed;
+            return Enum.TryParse(value, true, out parsed)
+                ? parsed
+                : BeamGageTimestampStrategy.HostArrivalUtc;
         }
     }
 
