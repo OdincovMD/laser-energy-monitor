@@ -18,6 +18,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Infrastr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Infrastructure.Logging", "src\LaserEnergyMonitor.Infrastructure.Logging\LaserEnergyMonitor.Infrastructure.Logging.csproj", "{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Tests", "tests\LaserEnergyMonitor.Tests\LaserEnergyMonitor.Tests.csproj", "{3EBA4E73-8D6D-45B8-B866-E6F594B42919}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -56,6 +58,10 @@ Global
 		{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}.Debug|x86.Build.0 = Debug|x86
 		{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}.Release|x86.ActiveCfg = Release|x86
 		{5C4B9BB9-D2A8-42F5-BA14-D74FA91E5998}.Release|x86.Build.0 = Release|x86
+		{3EBA4E73-8D6D-45B8-B866-E6F594B42919}.Debug|x86.ActiveCfg = Debug|x86
+		{3EBA4E73-8D6D-45B8-B866-E6F594B42919}.Debug|x86.Build.0 = Debug|x86
+		{3EBA4E73-8D6D-45B8-B866-E6F594B42919}.Release|x86.ActiveCfg = Release|x86
+		{3EBA4E73-8D6D-45B8-B866-E6F594B42919}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

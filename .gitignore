@@ -44,10 +44,12 @@ venv/
 output/
 exports/
 results/
+ui-test-artifacts/
 
 # Local helper folders
 .agents/
 .codex/
+delivery/LaserEnergyMonitor-*/
 
 # Vendor archives and reference materials
 Beam Gage/

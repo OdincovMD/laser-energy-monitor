@@ -7,4 +7,9 @@
     <Deterministic>true</Deterministic>
     <ImplicitUsings>false</ImplicitUsings>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(LaserEnergyMonitorArtifactsRoot)' != ''">
+    <BaseIntermediateOutputPath>$(LaserEnergyMonitorArtifactsRoot)\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(LaserEnergyMonitorArtifactsRoot)\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\bin\**</DefaultItemExcludes>
+  </PropertyGroup>
 </Project>
