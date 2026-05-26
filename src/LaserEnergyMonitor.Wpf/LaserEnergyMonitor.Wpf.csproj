@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Configuration" />
+    <ProjectReference Include="..\LaserEnergyMonitor.Application\LaserEnergyMonitor.Application.csproj" />
+    <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure\LaserEnergyMonitor.Infrastructure.csproj" />
+    <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.BeamGage\LaserEnergyMonitor.Infrastructure.BeamGage.csproj" />
+    <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.Ophir\LaserEnergyMonitor.Infrastructure.Ophir.csproj" />
+    <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.Excel\LaserEnergyMonitor.Infrastructure.Excel.csproj" />
+    <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.Logging\LaserEnergyMonitor.Infrastructure.Logging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\LaserEnergyMonitor.App\MeasurementSessionRuntimeFactory.cs" Link="Runtime\MeasurementSessionRuntimeFactory.cs" />
+  </ItemGroup>
+</Project>

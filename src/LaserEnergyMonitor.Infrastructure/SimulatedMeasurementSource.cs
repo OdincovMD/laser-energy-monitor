@@ -9,21 +9,31 @@ namespace LaserEnergyMonitor.Infrastructure
     {
         private readonly object _gate = new object();
         private readonly Random _random;
-        private readonly double _baseEnergy;
         private readonly int _intervalMs;
+        private readonly SimulatedMeasurementProfile _profile;
         private CancellationTokenSource _cts;
         private Task _worker;
         private long _sequence;
 
         public SimulatedMeasurementSource(string sourceId, double baseEnergy, int intervalMs)
+            : this(sourceId, SimulatedMeasurementProfile.CreateLegacy(baseEnergy), intervalMs)
+        {
+        }
+
+        public SimulatedMeasurementSource(string sourceId, SimulatedMeasurementProfile profile, int intervalMs)
         {
             if (string.IsNullOrWhiteSpace(sourceId))
             {
                 throw new ArgumentException("Source id is required.", "sourceId");
             }
 
+            if (profile == null)
+            {
+                throw new ArgumentNullException("profile");
+            }
+
             SourceId = sourceId;
-            _baseEnergy = baseEnergy;
+            _profile = profile;
             _intervalMs = intervalMs;
             _random = new Random(sourceId.GetHashCode());
         }
@@ -126,24 +136,7 @@ namespace LaserEnergyMonitor.Infrastructure
 
         private double ComputeEnergy(long sequence)
         {
-            double noise = (_random.NextDouble() - 0.5d) * 0.04d;
-
-            if (sequence < 50)
-            {
-                return _baseEnergy + (sequence * 0.01d) + noise;
-            }
-
-            if (sequence < 180)
-            {
-                return _baseEnergy + 0.5d + noise;
-            }
-
-            if (sequence < 230)
-            {
-                return _baseEnergy + 1.2d + noise;
-            }
-
-            return _baseEnergy + 0.55d + noise;
+            return _profile.ComputeEnergy(sequence, _random);
         }
     }
 }

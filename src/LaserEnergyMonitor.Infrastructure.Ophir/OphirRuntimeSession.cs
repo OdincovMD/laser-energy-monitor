@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace LaserEnergyMonitor.Infrastructure.Ophir
 {
@@ -12,6 +13,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         private readonly object _comObject;
         private readonly int _deviceHandle;
         private readonly int _channel;
+        private readonly int _ownerThreadId;
         private bool _streaming;
         private bool _disposed;
 
@@ -20,6 +22,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             _comObject = comObject;
             _deviceHandle = deviceHandle;
             _channel = channel;
+            _ownerThreadId = Thread.CurrentThread.ManagedThreadId;
             SerialNumber = serialNumber;
         }
 
@@ -32,6 +35,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 
         public static OphirRuntimeSession Open(OphirMeasurementOptions options)
         {
+            EnsureStaThread();
             OphirMeasurementOptions effectiveOptions = options ?? OphirMeasurementOptions.Default;
             object comObject = CreateRuntimeInstance();
             try
@@ -55,6 +59,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         public void StartStream()
         {
             ThrowIfDisposed();
+            EnsureThreadAffinity();
             if (_streaming)
             {
                 return;
@@ -67,6 +72,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         public void StopStream()
         {
             ThrowIfDisposed();
+            EnsureThreadAffinity();
             if (!_streaming)
             {
                 return;
@@ -79,6 +85,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         public OphirDataBatch GetDataBatch()
         {
             ThrowIfDisposed();
+            EnsureThreadAffinity();
 
             object[] args =
             {
@@ -109,6 +116,8 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             {
                 return;
             }
+
+            EnsureThreadAffinity();
 
             try
             {
@@ -362,6 +371,25 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             if (_disposed)
             {
                 throw new ObjectDisposedException(GetType().FullName);
+            }
+        }
+
+        private static void EnsureStaThread()
+        {
+            if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
+            {
+                throw new InvalidOperationException(
+                    "Ophir automation must be initialized from an STA thread." + Environment.NewLine +
+                    "The current thread apartment is " + Thread.CurrentThread.GetApartmentState().ToString() + ".");
+            }
+        }
+
+        private void EnsureThreadAffinity()
+        {
+            if (Thread.CurrentThread.ManagedThreadId != _ownerThreadId)
+            {
+                throw new InvalidOperationException(
+                    "Ophir automation must be used from the same STA thread that created the COM object.");
             }
         }
     }

@@ -62,6 +62,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 details.Append("COM type: ");
                 details.Append(runtimeType.FullName);
                 details.AppendLine();
+                AppendDriverVersion(comObject, details);
                 details.Append("Required methods: ");
                 details.Append(DescribeMethodAvailability(runtimeType));
                 details.AppendLine();
@@ -124,21 +125,24 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     Details = "OpenUSBDevice handle: " + handle.ToString(CultureInfo.InvariantCulture)
                 });
 
-                bool sensorExists = IsSensorExists(comObject, handle, 0);
-                details.Append("IsSensorExists(channel 0): ");
-                details.Append(sensorExists ? "yes" : "no");
+                List<int> activeChannels = GetActiveChannels(comObject, handle);
+                int streamChannel = activeChannels.Count > 0 ? activeChannels[0] : -1;
+                details.Append("Active sensor channels: ");
+                details.Append(activeChannels.Count > 0 ? string.Join(", ", activeChannels) : "none");
                 steps.Add(new MeasurementSourceRuntimeProbeStep
                 {
                     Name = "Sensor detection",
-                    Status = sensorExists ? "PASS" : "FAIL",
-                    Details = "Channel 0 sensor present: " + (sensorExists ? "yes" : "no")
+                    Status = activeChannels.Count > 0 ? "PASS" : "FAIL",
+                    Details = activeChannels.Count > 0
+                        ? "Detected active sensor channel(s): " + string.Join(", ", activeChannels)
+                        : "No active sensor was detected on channels 0-3."
                 });
 
-                if (sensorExists)
+                if (streamChannel >= 0)
                 {
                     details.AppendLine();
                     details.Append("Stream probe: ");
-                    string streamDetails = TryStreamProbe(comObject, handle, 0);
+                    string streamDetails = TryStreamProbe(comObject, handle, streamChannel);
                     details.Append(streamDetails);
                     steps.Add(new MeasurementSourceRuntimeProbeStep
                     {
@@ -153,7 +157,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     {
                         Name = "Stream probe",
                         Status = "SKIPPED",
-                        Details = "No active sensor was detected on channel 0."
+                        Details = "No active sensor was detected on channels 0-3."
                     });
                 }
 
@@ -207,11 +211,44 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             return Convert.ToInt32(args[1], CultureInfo.InvariantCulture);
         }
 
+        private static void AppendDriverVersion(object comObject, StringBuilder details)
+        {
+            try
+            {
+                object[] args = { null };
+                Invoke(comObject, "GetDriverVersion", args);
+                string version = Convert.ToString(args[0], CultureInfo.InvariantCulture);
+                if (!string.IsNullOrWhiteSpace(version))
+                {
+                    details.Append("Driver version: ");
+                    details.Append(version);
+                    details.AppendLine();
+                }
+            }
+            catch
+            {
+            }
+        }
+
         private static bool IsSensorExists(object comObject, int handle, int channel)
         {
             object[] args = { handle, channel, null };
             Invoke(comObject, "IsSensorExists", args);
             return Convert.ToBoolean(args[2], CultureInfo.InvariantCulture);
+        }
+
+        private static List<int> GetActiveChannels(object comObject, int handle)
+        {
+            List<int> activeChannels = new List<int>();
+            for (int channel = 0; channel < 4; channel++)
+            {
+                if (IsSensorExists(comObject, handle, channel))
+                {
+                    activeChannels.Add(channel);
+                }
+            }
+
+            return activeChannels;
         }
 
         private static string TryStreamProbe(object comObject, int handle, int channel)

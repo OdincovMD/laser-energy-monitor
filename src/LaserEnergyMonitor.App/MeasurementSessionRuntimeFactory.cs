@@ -45,7 +45,7 @@ namespace LaserEnergyMonitor.App
                     "beam-sim",
                     "Simulated BeamGage",
                     true,
-                    () => new SimulatedMeasurementSource("BeamGage", 10.0d, 50),
+                    () => new SimulatedMeasurementSource("BeamGage", SimulatedMeasurementProfile.CreateBeamGageCustomerLike(), 50),
                     () => new MeasurementSourceRuntimeProbeResult
                     {
                         DependencyAvailable = true,
@@ -66,7 +66,7 @@ namespace LaserEnergyMonitor.App
                     "ophir-sim",
                     "Simulated Ophir",
                     true,
-                    () => new SimulatedMeasurementSource("Ophir", 10.2d, 50),
+                    () => new SimulatedMeasurementSource("Ophir", SimulatedMeasurementProfile.CreateOphirCustomerLike(), 50),
                     () => new MeasurementSourceRuntimeProbeResult
                     {
                         DependencyAvailable = true,

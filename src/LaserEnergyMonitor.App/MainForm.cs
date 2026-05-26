@@ -70,15 +70,15 @@ namespace LaserEnergyMonitor.App
             _defaultOutputDir = defaultOutputDir;
             _uiToolTip = new ToolTip();
             Text = "Laser Energy Monitor";
-            Width = 1400;
-            Height = 900;
-            MinimumSize = new Size(1120, 700);
+            Width = 1360;
+            Height = 860;
+            MinimumSize = new Size(1180, 760);
             StartPosition = FormStartPosition.CenterScreen;
             WindowState = FormWindowState.Maximized;
             AutoScaleMode = AutoScaleMode.Dpi;
             DoubleBuffered = true;
             Font = new Font("Segoe UI", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
-            BackColor = Color.FromArgb(239, 243, 248);
+            BackColor = Color.FromArgb(244, 247, 251);
 
             BuildLayout();
             WireEvents();
@@ -102,7 +102,7 @@ namespace LaserEnergyMonitor.App
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 1;
             root.RowCount = 2;
-            root.Padding = new Padding(16);
+            root.Padding = new Padding(14);
             root.BackColor = BackColor;
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -115,8 +115,8 @@ namespace LaserEnergyMonitor.App
             workspaceLayout.Margin = new Padding(0, 12, 0, 0);
             workspaceLayout.ColumnCount = 1;
             workspaceLayout.RowCount = 2;
-            workspaceLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 56));
-            workspaceLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
+            workspaceLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 58));
+            workspaceLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
             root.Controls.Add(workspaceLayout, 0, 1);
 
             TableLayoutPanel topLayout = new TableLayoutPanel();
@@ -124,7 +124,7 @@ namespace LaserEnergyMonitor.App
             topLayout.Margin = new Padding(0);
             topLayout.ColumnCount = 2;
             topLayout.RowCount = 1;
-            topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 528));
+            topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 468));
             topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             workspaceLayout.Controls.Add(topLayout, 0, 0);
 
@@ -139,9 +139,9 @@ namespace LaserEnergyMonitor.App
 
             SectionCardView settingsCard = CreateSectionCard(
                 "Session Control",
-                "Configure the run, verify source health, and launch diagnostics from a single control surface.");
+                "Sources, thresholds, export path, and diagnostics.");
             settingsCard.Root.Margin = new Padding(0);
-            settingsCard.Root.MinimumSize = new Size(480, 0);
+            settingsCard.Root.MinimumSize = new Size(430, 0);
             settingsCard.Root.Margin = new Padding(0, 0, 6, 6);
             topLayout.Controls.Add(settingsCard.Root, 0, 0);
 
@@ -157,14 +157,14 @@ namespace LaserEnergyMonitor.App
             settingsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             settingsLayout.ColumnCount = 2;
             settingsLayout.RowCount = 12;
-            settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 166));
+            settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 118));
             settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             for (int row = 0; row < 10; row++)
             {
                 settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             }
 
-            settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 340));
+            settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 292));
             settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             settingsScrollPanel.Controls.Add(settingsLayout);
 
@@ -180,7 +180,7 @@ namespace LaserEnergyMonitor.App
             _desynchronizationPolicyComboBox = CreateDesynchronizationPolicyComboBox(DesynchronizationPolicyAction.FaultSession);
             _outputPathTextBox = new TextBox();
             _browseOutputButton = new Button();
-            _browseOutputButton.Text = "Browse...";
+            _browseOutputButton.Text = "Browse";
             ApplySecondaryButtonStyle(_browseOutputButton);
             _sourceDiagnosticsTextBox = new TextBox();
             _sourceDiagnosticsTextBox.Multiline = true;
@@ -204,17 +204,17 @@ namespace LaserEnergyMonitor.App
             UpdateOutputPathDisplay(Path.Combine(_defaultOutputDir, "measurement-session.xlsx"));
             ApplyAccessibilityMetadata();
 
-            AddLabeledControl(settingsLayout, 0, "BeamGage Source", _firstSourceComboBox);
-            AddLabeledControl(settingsLayout, 1, "Ophir Source", _secondSourceComboBox);
-            AddLabeledControl(settingsLayout, 2, "Session Name", _sessionNameTextBox);
-            AddLabeledControl(settingsLayout, 3, "Window N", _windowSizeInput);
-            AddLabeledControl(settingsLayout, 4, "Enter Threshold %", _enterThresholdInput);
-            AddLabeledControl(settingsLayout, 5, "Exit Threshold %", _exitThresholdInput);
-            AddLabeledControl(settingsLayout, 6, "Sync Delta ms", _syncDeltaInput);
-            AddLabeledControl(settingsLayout, 7, "Max Consecutive Desyncs", _maxConsecutiveDesyncInput);
-            AddLabeledControl(settingsLayout, 8, "Desync Policy", _desynchronizationPolicyComboBox);
-            AddLabeledControl(settingsLayout, 9, "Output Path", BuildOutputPathPanel());
-            AddLabeledControl(settingsLayout, 10, "Source Status", BuildDiagnosticsTabs());
+            AddLabeledControl(settingsLayout, 0, "BeamGage", _firstSourceComboBox);
+            AddLabeledControl(settingsLayout, 1, "Ophir", _secondSourceComboBox);
+            AddLabeledControl(settingsLayout, 2, "Session", _sessionNameTextBox);
+            AddLabeledControl(settingsLayout, 3, "Window", _windowSizeInput);
+            AddLabeledControl(settingsLayout, 4, "Enter %", _enterThresholdInput);
+            AddLabeledControl(settingsLayout, 5, "Exit %", _exitThresholdInput);
+            AddLabeledControl(settingsLayout, 6, "Sync ms", _syncDeltaInput);
+            AddLabeledControl(settingsLayout, 7, "Desync limit", _maxConsecutiveDesyncInput);
+            AddLabeledControl(settingsLayout, 8, "Policy", _desynchronizationPolicyComboBox);
+            AddLabeledControl(settingsLayout, 9, "Export", BuildOutputPathPanel());
+            AddLabeledControl(settingsLayout, 10, "Diagnostics", BuildDiagnosticsTabs());
 
             FlowLayoutPanel buttonsPanel = new FlowLayoutPanel();
             buttonsPanel.Dock = DockStyle.Fill;
@@ -228,11 +228,11 @@ namespace LaserEnergyMonitor.App
             _initializeButton = new Button();
             _initializeButton.Text = "Initialize";
             _selfTestButton = new Button();
-            _selfTestButton.Text = "Run Self-Test";
+            _selfTestButton.Text = "Self-Test";
             _beamGageSmokeTestButton = new Button();
-            _beamGageSmokeTestButton.Text = "BeamGage Smoke-Test";
+            _beamGageSmokeTestButton.Text = "BeamGage Test";
             _ophirSmokeTestButton = new Button();
-            _ophirSmokeTestButton.Text = "Ophir Smoke-Test";
+            _ophirSmokeTestButton.Text = "Ophir Test";
             _startButton = new Button();
             _startButton.Text = "Start";
             _stopButton = new Button();
@@ -255,7 +255,7 @@ namespace LaserEnergyMonitor.App
 
             SectionCardView liveCard = CreateSectionCard(
                 "Live Status",
-                "Keep the session state, pair timing, and energy metrics visible without fighting the layout.");
+                "Session state, pairing, energy, and stationarity.");
             liveCard.Root.Margin = new Padding(0);
             liveCard.Root.Margin = new Padding(6, 0, 0, 6);
             topLayout.Controls.Add(liveCard.Root, 1, 0);
@@ -264,7 +264,7 @@ namespace LaserEnergyMonitor.App
             liveLayout.Dock = DockStyle.Fill;
             liveLayout.ColumnCount = 1;
             liveLayout.RowCount = 2;
-            liveLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+            liveLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             liveLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             liveCard.Body.Controls.Add(liveLayout);
 
@@ -301,7 +301,7 @@ namespace LaserEnergyMonitor.App
 
             SectionCardView eventsCard = CreateSectionCard(
                 "Events",
-                "Recent operator and session activity stays visible at the bottom of the workspace.");
+                "Operator and session activity.");
             eventsCard.Root.Margin = new Padding(0, 6, 6, 0);
             eventsCard.Root.MinimumSize = new Size(0, 280);
             bottomLayout.Controls.Add(eventsCard.Root, 0, 0);
@@ -339,7 +339,7 @@ namespace LaserEnergyMonitor.App
 
             SectionCardView reviewCard = CreateSectionCard(
                 "Session Review",
-                "See the final series summary and every closed stationary segment without opening the export.");
+                "Summary and closed stationary segments.");
             reviewCard.Root.Margin = new Padding(6, 6, 0, 0);
             reviewCard.Root.MinimumSize = new Size(340, 280);
             bottomLayout.Controls.Add(reviewCard.Root, 1, 0);
@@ -348,7 +348,7 @@ namespace LaserEnergyMonitor.App
             reviewLayout.Dock = DockStyle.Fill;
             reviewLayout.ColumnCount = 1;
             reviewLayout.RowCount = 2;
-            reviewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 132));
+            reviewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 168));
             reviewLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             reviewCard.Body.Controls.Add(reviewLayout);
 
@@ -744,7 +744,8 @@ namespace LaserEnergyMonitor.App
             panel.ColumnCount = 2;
             panel.RowCount = 1;
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 78));
+            panel.Margin = new Padding(0, 4, 0, 4);
             panel.Controls.Add(_outputPathTextBox, 0, 0);
             panel.Controls.Add(_browseOutputButton, 1, 0);
             return panel;
@@ -755,10 +756,10 @@ namespace LaserEnergyMonitor.App
             TabControl tabs = new TabControl();
             tabs.Dock = DockStyle.Fill;
             tabs.Appearance = TabAppearance.Normal;
-            tabs.Padding = new Point(16, 6);
-            tabs.ItemSize = new Size(140, 30);
+            tabs.Padding = new Point(12, 5);
+            tabs.ItemSize = new Size(112, 28);
             tabs.SizeMode = TabSizeMode.Fixed;
-            tabs.MinimumSize = new Size(0, 340);
+            tabs.MinimumSize = new Size(0, 282);
 
             TabPage overviewPage = new TabPage("Overview");
             overviewPage.Name = "OverviewTab";
@@ -793,18 +794,18 @@ namespace LaserEnergyMonitor.App
             root.Dock = DockStyle.Fill;
             root.BackColor = Color.FromArgb(250, 252, 255);
             root.BorderStyle = BorderStyle.FixedSingle;
-            root.Padding = new Padding(14);
+            root.Padding = new Padding(12);
             root.Margin = new Padding(0, 0, 0, 8);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
             layout.ColumnCount = 1;
             layout.RowCount = 5;
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
             root.Controls.Add(layout);
 
             Label titleLabel = new Label();
@@ -826,7 +827,7 @@ namespace LaserEnergyMonitor.App
             stepsListBox.Dock = DockStyle.Fill;
             stepsListBox.BorderStyle = BorderStyle.None;
             stepsListBox.BackColor = Color.White;
-            stepsListBox.Font = new Font("Consolas", 8.5f, FontStyle.Regular, GraphicsUnit.Point);
+            stepsListBox.Font = new Font("Consolas", 8.25f, FontStyle.Regular, GraphicsUnit.Point);
             stepsListBox.IntegralHeight = false;
 
             TextBox detailsTextBox = new TextBox();
@@ -1038,13 +1039,14 @@ namespace LaserEnergyMonitor.App
         {
             Label label = new Label();
             label.Text = labelText;
-            label.AutoSize = true;
-            label.Anchor = AnchorStyles.Left;
-            label.Font = new Font("Segoe UI Semibold", 9.0f, FontStyle.Bold, GraphicsUnit.Point);
+            label.AutoSize = false;
+            label.Dock = DockStyle.Fill;
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.Font = new Font("Segoe UI Semibold", 8.75f, FontStyle.Bold, GraphicsUnit.Point);
             label.ForeColor = Color.FromArgb(58, 69, 82);
-            label.Margin = new Padding(0, 12, 12, 8);
+            label.Margin = new Padding(0, 6, 10, 6);
             control.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
-            control.Margin = new Padding(0, 8, 0, 8);
+            control.Margin = new Padding(0, 5, 0, 5);
             layout.Controls.Add(label, 0, row);
             layout.Controls.Add(control, 1, row);
         }
@@ -1326,23 +1328,23 @@ namespace LaserEnergyMonitor.App
         {
             Panel panel = new Panel();
             panel.Dock = DockStyle.Fill;
-            panel.BackColor = Color.FromArgb(20, 34, 54);
-            panel.Padding = new Padding(24, 16, 24, 14);
+            panel.BackColor = Color.FromArgb(24, 37, 56);
+            panel.Padding = new Padding(22, 14, 22, 12);
             panel.Margin = new Padding(0);
-            panel.MinimumSize = new Size(0, 92);
+            panel.MinimumSize = new Size(0, 78);
 
             Label titleLabel = new Label();
             titleLabel.Text = "Laser Energy Monitor";
             titleLabel.Dock = DockStyle.Top;
-            titleLabel.Height = 30;
-            titleLabel.Font = new Font("Segoe UI Semibold", 17.5f, FontStyle.Bold, GraphicsUnit.Point);
+            titleLabel.Height = 28;
+            titleLabel.Font = new Font("Segoe UI Semibold", 16.0f, FontStyle.Bold, GraphicsUnit.Point);
             titleLabel.ForeColor = Color.White;
 
             Label subtitleLabel = new Label();
-            subtitleLabel.Text = "Configure sources, run hardware diagnostics, and monitor the live session state from one screen.";
+            subtitleLabel.Text = "Diagnostics, acquisition, stability, and export";
             subtitleLabel.Dock = DockStyle.Fill;
             subtitleLabel.AutoEllipsis = true;
-            subtitleLabel.Font = new Font("Segoe UI", 9.75f, FontStyle.Regular, GraphicsUnit.Point);
+            subtitleLabel.Font = new Font("Segoe UI", 9.25f, FontStyle.Regular, GraphicsUnit.Point);
             subtitleLabel.ForeColor = Color.FromArgb(204, 215, 228);
 
             panel.Controls.Add(subtitleLabel);
@@ -1353,29 +1355,29 @@ namespace LaserEnergyMonitor.App
         private static void ApplyPrimaryButtonStyle(Button button, bool accent)
         {
             button.AutoSize = false;
-            button.Width = accent ? 170 : 152;
-            button.Height = 40;
-            button.MinimumSize = new Size(148, 40);
+            button.Width = accent ? 128 : 124;
+            button.Height = 36;
+            button.MinimumSize = new Size(112, 36);
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderSize = 0;
-            button.Margin = new Padding(0, 0, 12, 12);
-            button.Padding = new Padding(12, 0, 12, 0);
+            button.Margin = new Padding(0, 0, 8, 8);
+            button.Padding = new Padding(8, 0, 8, 0);
             button.Cursor = Cursors.Hand;
-            button.Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold, GraphicsUnit.Point);
-            button.BackColor = accent ? Color.FromArgb(31, 104, 210) : Color.FromArgb(230, 235, 241);
+            button.Font = new Font("Segoe UI Semibold", 9.0f, FontStyle.Bold, GraphicsUnit.Point);
+            button.BackColor = accent ? Color.FromArgb(21, 101, 192) : Color.FromArgb(229, 235, 243);
             button.ForeColor = accent ? Color.White : Color.FromArgb(35, 44, 56);
         }
 
         private static void ApplySecondaryButtonStyle(Button button)
         {
             button.AutoSize = false;
-            button.Height = 36;
+            button.Height = 32;
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderColor = Color.FromArgb(208, 216, 227);
             button.FlatAppearance.BorderSize = 1;
-            button.Padding = new Padding(10, 0, 10, 0);
+            button.Padding = new Padding(8, 0, 8, 0);
             button.Cursor = Cursors.Hand;
-            button.Font = new Font("Segoe UI Semibold", 9.0f, FontStyle.Bold, GraphicsUnit.Point);
+            button.Font = new Font("Segoe UI Semibold", 8.75f, FontStyle.Bold, GraphicsUnit.Point);
             button.BackColor = Color.White;
             button.ForeColor = Color.FromArgb(33, 42, 53);
             button.Margin = new Padding(4);
@@ -1385,7 +1387,7 @@ namespace LaserEnergyMonitor.App
         {
             Panel banner = new Panel();
             banner.Dock = DockStyle.Fill;
-            banner.Padding = new Padding(12);
+            banner.Padding = new Padding(10);
             banner.BackColor = Color.FromArgb(245, 248, 252);
             banner.BorderStyle = BorderStyle.FixedSingle;
 
@@ -1393,7 +1395,7 @@ namespace LaserEnergyMonitor.App
             layout.Dock = DockStyle.Fill;
             layout.ColumnCount = 2;
             layout.RowCount = 1;
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             banner.Controls.Add(layout);
 
@@ -1404,8 +1406,8 @@ namespace LaserEnergyMonitor.App
             textLayout.Dock = DockStyle.Fill;
             textLayout.ColumnCount = 1;
             textLayout.RowCount = 3;
-            textLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
-            textLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            textLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+            textLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
             textLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.Controls.Add(textLayout, 1, 0);
 
@@ -1416,7 +1418,7 @@ namespace LaserEnergyMonitor.App
             titleLabel.ForeColor = Color.FromArgb(29, 41, 55);
 
             Label descriptionLabel = new Label();
-            descriptionLabel.Text = "The live board below stays aligned while the session moves between initialization, acquisition, and stationary detection.";
+            descriptionLabel.Text = "Pair timing and energy metrics update as samples arrive.";
             descriptionLabel.Dock = DockStyle.Fill;
             descriptionLabel.AutoEllipsis = true;
             descriptionLabel.ForeColor = Color.FromArgb(92, 104, 120);
@@ -1433,7 +1435,7 @@ namespace LaserEnergyMonitor.App
             metricsLayout.Dock = DockStyle.Fill;
             metricsLayout.ColumnCount = 3;
             metricsLayout.RowCount = 3;
-            metricsLayout.Padding = new Padding(0, 8, 0, 0);
+            metricsLayout.Padding = new Padding(0, 6, 0, 0);
             metricsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
             metricsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333f));
             metricsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333f));
@@ -1457,8 +1459,8 @@ namespace LaserEnergyMonitor.App
         private static void AddMetricCard(TableLayoutPanel layout, string title, Label valueLabel, int column, int row)
         {
             Control card = CreateMetricCard(title, valueLabel);
-            int rightMargin = column < layout.ColumnCount - 1 ? 8 : 0;
-            int bottomMargin = row < layout.RowCount - 1 ? 8 : 0;
+            int rightMargin = column < layout.ColumnCount - 1 ? 7 : 0;
+            int bottomMargin = row < layout.RowCount - 1 ? 7 : 0;
             card.Margin = new Padding(0, 0, rightMargin, bottomMargin);
             layout.Controls.Add(card, column, row);
         }
@@ -1467,7 +1469,7 @@ namespace LaserEnergyMonitor.App
         {
             Panel panel = new Panel();
             panel.Dock = DockStyle.Fill;
-            panel.Padding = new Padding(10, 6, 10, 6);
+            panel.Padding = new Padding(9, 5, 9, 5);
             panel.BackColor = Color.FromArgb(232, 240, 254);
             panel.BorderStyle = BorderStyle.FixedSingle;
 
@@ -1475,18 +1477,19 @@ namespace LaserEnergyMonitor.App
             layout.Dock = DockStyle.Fill;
             layout.ColumnCount = 1;
             layout.RowCount = 2;
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 16));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 15));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             panel.Controls.Add(layout);
 
             _statusBannerTitleLabel = new Label();
             _statusBannerTitleLabel.Dock = DockStyle.Fill;
-            _statusBannerTitleLabel.Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold, GraphicsUnit.Point);
+            _statusBannerTitleLabel.Font = new Font("Segoe UI Semibold", 8.25f, FontStyle.Bold, GraphicsUnit.Point);
             _statusBannerTitleLabel.ForeColor = Color.FromArgb(17, 90, 153);
             _statusBannerTitleLabel.Text = "Ready";
 
             _statusBannerMessageLabel = new Label();
             _statusBannerMessageLabel.Dock = DockStyle.Fill;
+            _statusBannerMessageLabel.AutoEllipsis = true;
             _statusBannerMessageLabel.ForeColor = Color.FromArgb(38, 62, 92);
             _statusBannerMessageLabel.Text = "Initialize the selected sources to begin a new measurement session.";
 
@@ -1529,12 +1532,12 @@ namespace LaserEnergyMonitor.App
             Label titleLabel = new Label();
             titleLabel.Text = "Stationary Segments";
             titleLabel.Dock = DockStyle.Top;
-            titleLabel.Height = 22;
+            titleLabel.Height = 24;
             titleLabel.Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold, GraphicsUnit.Point);
             titleLabel.ForeColor = Color.FromArgb(36, 46, 58);
 
             _stationarySegmentsListBox.Dock = DockStyle.Fill;
-            _stationarySegmentsListBox.BorderStyle = BorderStyle.FixedSingle;
+            _stationarySegmentsListBox.BorderStyle = BorderStyle.None;
             _stationarySegmentsListBox.BackColor = Color.FromArgb(249, 251, 253);
             _stationarySegmentsListBox.ForeColor = Color.FromArgb(37, 45, 58);
             _stationarySegmentsListBox.Font = new Font("Consolas", 8.75f, FontStyle.Regular, GraphicsUnit.Point);
@@ -1550,21 +1553,23 @@ namespace LaserEnergyMonitor.App
         {
             Panel card = new Panel();
             card.Dock = DockStyle.Fill;
-            card.Padding = new Padding(12, 8, 12, 8);
-            card.BackColor = Color.White;
+            card.Padding = new Padding(11, 8, 11, 8);
+            card.BackColor = Color.FromArgb(252, 253, 255);
             card.BorderStyle = BorderStyle.FixedSingle;
 
             Label titleLabel = new Label();
             titleLabel.Text = title;
             titleLabel.Dock = DockStyle.Top;
             titleLabel.Height = 18;
-            titleLabel.Font = new Font("Segoe UI Semibold", 8.25f, FontStyle.Bold, GraphicsUnit.Point);
+            titleLabel.Font = new Font("Segoe UI Semibold", 8.0f, FontStyle.Bold, GraphicsUnit.Point);
             titleLabel.ForeColor = Color.FromArgb(99, 111, 126);
+            titleLabel.AutoEllipsis = true;
 
             valueLabel.Dock = DockStyle.Fill;
             valueLabel.Text = "-";
             valueLabel.TextAlign = ContentAlignment.MiddleLeft;
-            valueLabel.Font = new Font("Segoe UI Semibold", 12.0f, FontStyle.Bold, GraphicsUnit.Point);
+            valueLabel.AutoEllipsis = true;
+            valueLabel.Font = new Font("Segoe UI Semibold", 11.25f, FontStyle.Bold, GraphicsUnit.Point);
             valueLabel.ForeColor = Color.FromArgb(27, 37, 49);
             valueLabel.Margin = new Padding(0);
 
@@ -1576,7 +1581,7 @@ namespace LaserEnergyMonitor.App
         private static void ApplyInputStyle(Control control)
         {
             control.Dock = DockStyle.Fill;
-            control.Margin = new Padding(0, 8, 0, 8);
+            control.Margin = new Padding(0, 5, 0, 5);
             control.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
 
             TextBox textBox = control as TextBox;
@@ -1617,7 +1622,7 @@ namespace LaserEnergyMonitor.App
         {
             Panel root = new Panel();
             root.Dock = DockStyle.Fill;
-            root.Padding = new Padding(14);
+            root.Padding = new Padding(12);
             root.BackColor = Color.White;
             root.BorderStyle = BorderStyle.FixedSingle;
 
@@ -1625,7 +1630,7 @@ namespace LaserEnergyMonitor.App
             layout.Dock = DockStyle.Fill;
             layout.ColumnCount = 1;
             layout.RowCount = 2;
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.Controls.Add(layout);
 
@@ -1635,13 +1640,15 @@ namespace LaserEnergyMonitor.App
             Label titleLabel = new Label();
             titleLabel.Text = title;
             titleLabel.Dock = DockStyle.Top;
-            titleLabel.Height = 26;
-            titleLabel.Font = new Font("Segoe UI Semibold", 11.5f, FontStyle.Bold, GraphicsUnit.Point);
+            titleLabel.Height = 24;
+            titleLabel.Font = new Font("Segoe UI Semibold", 10.75f, FontStyle.Bold, GraphicsUnit.Point);
             titleLabel.ForeColor = Color.FromArgb(24, 35, 48);
 
             Label subtitleLabel = new Label();
             subtitleLabel.Text = subtitle;
             subtitleLabel.Dock = DockStyle.Fill;
+            subtitleLabel.AutoEllipsis = true;
+            subtitleLabel.Font = new Font("Segoe UI", 8.75f, FontStyle.Regular, GraphicsUnit.Point);
             subtitleLabel.ForeColor = Color.FromArgb(103, 114, 128);
 
             headerPanel.Controls.Add(subtitleLabel);

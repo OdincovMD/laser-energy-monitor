@@ -11,6 +11,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         private readonly OphirMeasurementOptions _options;
         private CancellationTokenSource _cts;
         private Task _pollingTask;
+        private StaWorker _staWorker;
         private OphirRuntimeSession _session;
         private OphirCaptureWriter _captureWriter;
         private long _sequence;
@@ -47,8 +48,30 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     return;
                 }
 
-                _session = OphirRuntimeSession.Open(_options);
-                IsConnected = true;
+                if (_staWorker == null)
+                {
+                    _staWorker = new StaWorker("Ophir COM worker");
+                }
+
+                try
+                {
+                    _session = _staWorker.Invoke(
+                        delegate
+                        {
+                            return OphirRuntimeSession.Open(_options);
+                        });
+                    IsConnected = true;
+                }
+                catch
+                {
+                    if (_session == null && _staWorker != null)
+                    {
+                        _staWorker.Dispose();
+                        _staWorker = null;
+                    }
+
+                    throw;
+                }
             }
         }
 
@@ -68,7 +91,11 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 }
 
                 EnsureCaptureWriter();
-                _session.StartStream();
+                _staWorker.Invoke(
+                    delegate
+                    {
+                        _session.StartStream();
+                    });
                 _cts = new CancellationTokenSource();
                 _pollingTask = Task.Factory.StartNew(
                     () => PollMeasurements(_cts.Token),
@@ -123,7 +150,11 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             {
                 if (_session != null)
                 {
-                    _session.StopStream();
+                    _staWorker.Invoke(
+                        delegate
+                        {
+                            _session.StopStream();
+                        });
                 }
 
                 DisposeCaptureWriter();
@@ -140,15 +171,29 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             Stop();
             _disposed = true;
 
+            StaWorker staWorker = null;
+            OphirRuntimeSession session = null;
             lock (_gate)
             {
-                if (_session != null)
+                staWorker = _staWorker;
+                session = _session;
+                _staWorker = null;
+                _session = null;
+                IsConnected = false;
+            }
+
+            if (staWorker != null)
+            {
+                if (session != null)
                 {
-                    _session.Dispose();
-                    _session = null;
+                    staWorker.Invoke(
+                        delegate
+                        {
+                            session.Dispose();
+                        });
                 }
 
-                IsConnected = false;
+                staWorker.Dispose();
             }
         }
 
@@ -161,12 +206,16 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     OphirDataBatch batch;
                     lock (_gate)
                     {
-                        if (_session == null)
+                        if (_session == null || _staWorker == null)
                         {
                             break;
                         }
 
-                        batch = _session.GetDataBatch();
+                        batch = _staWorker.Invoke(
+                            delegate
+                            {
+                                return _session.GetDataBatch();
+                            });
                     }
 
                     if (batch.Count > 0)
