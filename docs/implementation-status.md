@@ -4,7 +4,7 @@
 
 - создана solution `LaserEnergyMonitor.sln`;
 - заведены проекты по слоям:
-  - `App`
+  - `Wpf`
   - `Application`
   - `Domain`
   - `Infrastructure`
@@ -14,7 +14,7 @@
   - `Infrastructure.Logging`
 - зафиксирован target:
   - `.NET Framework 4.8`
-  - `WinForms`
+  - `WPF`
   - `x86`
 - реализовано доменное ядро:
   - модель одиночного измерения;
@@ -66,4 +66,3 @@
 3. подтвердить способ получения timestamp / sequence;
 4. заменить симулированные источники реальными адаптерами;
 5. заменить временный CSV-shadow exporter на настоящий `XLSX`.
-

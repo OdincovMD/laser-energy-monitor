@@ -17,7 +17,7 @@ The Ophir integration currently performs a prerequisite probe before any live ac
 
 ## App bootstrap mode
 
-The WinForms app reads per-source settings from `src/LaserEnergyMonitor.App/App.config`.
+The WPF app reads per-source settings from `src/LaserEnergyMonitor.Wpf/App.config`.
 
 - `MeasurementSources.BeamGageMode=simulation|hardware`
 - `MeasurementSources.OphirMode=simulation|hardware`

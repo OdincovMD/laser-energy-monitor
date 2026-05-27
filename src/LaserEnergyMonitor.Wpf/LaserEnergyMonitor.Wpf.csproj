@@ -12,7 +12,4 @@
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.Excel\LaserEnergyMonitor.Infrastructure.Excel.csproj" />
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.Logging\LaserEnergyMonitor.Infrastructure.Logging.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="..\LaserEnergyMonitor.App\MeasurementSessionRuntimeFactory.cs" Link="Runtime\MeasurementSessionRuntimeFactory.cs" />
-  </ItemGroup>
 </Project>

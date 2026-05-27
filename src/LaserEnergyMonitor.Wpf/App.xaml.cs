@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Windows;
-using LaserEnergyMonitor.App;
 using LaserEnergyMonitor.Domain;
 using LaserEnergyMonitor.Infrastructure;
 

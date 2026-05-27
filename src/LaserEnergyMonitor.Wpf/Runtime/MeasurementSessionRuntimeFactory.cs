@@ -13,7 +13,7 @@ using LaserEnergyMonitor.Infrastructure.Excel;
 using LaserEnergyMonitor.Infrastructure.Logging;
 using LaserEnergyMonitor.Infrastructure.Ophir;
 
-namespace LaserEnergyMonitor.App
+namespace LaserEnergyMonitor.Wpf
 {
     public sealed class MeasurementSessionRuntimeFactory
     {

@@ -20,7 +20,7 @@
     architecture-and-stack.md
     project-structure.md
   src/
-    LaserEnergyMonitor.App/
+    LaserEnergyMonitor.Wpf/
     LaserEnergyMonitor.Application/
     LaserEnergyMonitor.Domain/
     LaserEnergyMonitor.Infrastructure/
@@ -35,15 +35,15 @@
 
 ## 3. Назначение проектов
 
-### 3.1. `LaserEnergyMonitor.App`
+### 3.1. `LaserEnergyMonitor.Wpf`
 
-Это desktop-приложение с `WinForms`.
+Это desktop-приложение с `WPF`.
 
 Содержит:
 
 - точку входа;
-- главную форму;
-- формы и диалоги;
+- главное окно;
+- окна и диалоги;
 - привязку UI к application services;
 - отображение состояния системы;
 - журнал событий для оператора.
@@ -158,8 +158,8 @@
 Рекомендуемая схема зависимостей:
 
 ```text
-App -> Application
-App -> Infrastructure.Logging
+Wpf -> Application
+Wpf -> Infrastructure.Logging
 
 Application -> Domain
 Application -> Infrastructure
@@ -300,11 +300,11 @@ Tests -> Infrastructure.Excel
 - `CompositeLogger`
 - `LogEntryFormatter`
 
-## 5.7. `LaserEnergyMonitor.App`
+## 5.7. `LaserEnergyMonitor.Wpf`
 
-### Основные формы
+### Основные окна
 
-- `MainForm`
+- `MainWindow`
 - `ErrorDialog`
 - `AboutDialog`
 
@@ -317,7 +317,7 @@ Tests -> Infrastructure.Excel
 
 ### Служебные классы
 
-- `MainFormPresenter` или `MainFormController`
+- `MainWindowPresenter` или `MainWindowController`
 - `UiThreadDispatcher`
 - `ApplicationBootstrapper`
 
@@ -469,7 +469,7 @@ Tests -> Infrastructure.Excel
 
 Что делаем:
 
-- `MainForm`;
+- `MainWindow`;
 - старт и стоп;
 - параметры `N`, порога и окна синхронизации;
 - live values;
@@ -543,7 +543,7 @@ Tests -> Infrastructure.Excel
 
 - кодовая база создается сразу под `x86`;
 - все vendor-зависимости изолируются в отдельных проектах;
-- бизнес-логика не живет в `WinForms`;
+- бизнес-логика не живет в `WPF`;
 - алгоритм стационарности оформляется как заменяемая политика;
 - запись в `XLSX` идет через отдельный exporter worker;
 - UI получает только агрегированное безопасное состояние;
@@ -561,4 +561,3 @@ Tests -> Infrastructure.Excel
 2. поднять проекты из этой структуры;
 3. завести базовые доменные модели и интерфейсы;
 4. подготовить spike для подключения реальных SDK.
-

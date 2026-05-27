@@ -6,8 +6,8 @@
 
 Основные файлы:
 
-- `LaserEnergyMonitor.App.exe`
-- `LaserEnergyMonitor.App.exe.config`
+- `LaserEnergyMonitor.Wpf.exe`
+- `LaserEnergyMonitor.Wpf.exe.config`
 - библиотеки `LaserEnergyMonitor.*.dll`
 - библиотеки `DocumentFormat.OpenXml*.dll`
 - эта памятка
@@ -47,7 +47,7 @@
 ## Как запускать
 
 1. Распаковать папку поставки в локальный каталог, где у пользователя есть право записи.
-2. Запустить `LaserEnergyMonitor.App.exe`.
+2. Запустить `LaserEnergyMonitor.Wpf.exe`.
 3. При первом запуске проверить выбранные источники данных в блоке `Session Control`.
 
 По умолчанию приложение может работать в безопасном режиме с симулированными источниками:

@@ -3,7 +3,6 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
-using LaserEnergyMonitor.App;
 using LaserEnergyMonitor.Application;
 using LaserEnergyMonitor.Domain;
 using Microsoft.Win32;

@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}"
 SOLUTION_PATH="${REPO_ROOT}/LaserEnergyMonitor.sln"
-APP_OUTPUT_DIR="${REPO_ROOT}/src/LaserEnergyMonitor.App/bin/x86/Release/net48"
+APP_OUTPUT_DIR="${REPO_ROOT}/src/LaserEnergyMonitor.Wpf/bin/x86/Release/net48"
 SHARED_ROOT="/mnt/data/Builds/LaserEnergyMonitor"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 TARGET_DIR="${SHARED_ROOT}/Release-${TIMESTAMP}"
