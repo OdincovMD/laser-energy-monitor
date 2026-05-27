@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -13,8 +14,12 @@ namespace LaserEnergyMonitor.Wpf
     {
         private const int MaxEventEntries = 500;
         private const int MaxSegmentEntries = 100;
+        private const int TrendPointCapacity = 90;
         private readonly MeasurementSessionRuntimeFactory _runtimeFactory;
         private readonly string _defaultOutputDir;
+        private readonly List<double> _beamEnergyTrend = new List<double>();
+        private readonly List<double> _ophirEnergyTrend = new List<double>();
+        private readonly List<double> _stabilityTrend = new List<double>();
         private MeasurementSessionService _service;
         private string _activeFirstSourceKey;
         private string _activeSecondSourceKey;
@@ -288,6 +293,11 @@ namespace LaserEnergyMonitor.Wpf
             Dispatcher.BeginInvoke(new Action(delegate { UpdateLiveValues(args.Snapshot); }));
         }
 
+        private void OnTrendPlotSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            RedrawTrendStrip();
+        }
+
         private void OnSessionEventRaised(object sender, SessionEventRaisedEventArgs args)
         {
             Dispatcher.BeginInvoke(
@@ -385,6 +395,7 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             DiagnosticsReportTextBox.Text = _runtimeFactory.BuildDiagnostics(firstKey, secondKey);
+            UpdateSourceModeBadges(firstKey, secondKey);
 
             var diagnostics = _runtimeFactory.GetDiagnostics(firstKey, secondKey);
             if (diagnostics.Count > 0)
@@ -444,6 +455,7 @@ namespace LaserEnergyMonitor.Wpf
 
             ApplyStateBadgeStyle(state);
             UpdateInlineStatusForState(state);
+            UpdateWorkflowStyle(state);
         }
 
         private static string BuildStateMessage(MeasurementSessionState state)
@@ -465,6 +477,82 @@ namespace LaserEnergyMonitor.Wpf
             }
         }
 
+        private void UpdateWorkflowStyle(MeasurementSessionState state)
+        {
+            bool setupActive = state == MeasurementSessionState.Idle || state == MeasurementSessionState.Initialized;
+            bool captureActive = state == MeasurementSessionState.Measuring || state == MeasurementSessionState.Stationary;
+            bool reviewActive = state == MeasurementSessionState.Completed || state == MeasurementSessionState.Faulted;
+
+            SetWorkflowStep(SetupStepBorder, SetupStepText, setupActive, !setupActive);
+            SetWorkflowStep(CaptureStepBorder, CaptureStepText, captureActive, reviewActive);
+            SetWorkflowStep(ReviewStepBorder, ReviewStepText, reviewActive, false);
+        }
+
+        private static void SetWorkflowStep(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, bool active, bool complete)
+        {
+            if (active)
+            {
+                border.Background = new SolidColorBrush(Color.FromRgb(221, 249, 255));
+                border.BorderBrush = new SolidColorBrush(Color.FromRgb(0, 184, 217));
+                text.Foreground = new SolidColorBrush(Color.FromRgb(0, 126, 150));
+                return;
+            }
+
+            if (complete)
+            {
+                border.Background = new SolidColorBrush(Color.FromRgb(232, 245, 235));
+                border.BorderBrush = new SolidColorBrush(Color.FromRgb(145, 204, 165));
+                text.Foreground = new SolidColorBrush(Color.FromRgb(25, 115, 75));
+                return;
+            }
+
+            border.Background = new SolidColorBrush(Color.FromRgb(233, 225, 212));
+            border.BorderBrush = new SolidColorBrush(Color.FromRgb(207, 197, 181));
+            text.Foreground = new SolidColorBrush(Color.FromRgb(110, 116, 109));
+        }
+
+        private void UpdateSourceModeBadges(string firstKey, string secondKey)
+        {
+            SetSourceModeBadge(BeamModeBorder, BeamModeText, firstKey);
+            SetSourceModeBadge(OphirModeBorder, OphirModeText, secondKey);
+        }
+
+        private static void SetSourceModeBadge(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, string key)
+        {
+            string normalizedKey = key ?? string.Empty;
+            if (normalizedKey.IndexOf("sim", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                border.Background = new SolidColorBrush(Color.FromRgb(232, 247, 250));
+                border.BorderBrush = new SolidColorBrush(Color.FromRgb(155, 212, 222));
+                text.Foreground = new SolidColorBrush(Color.FromRgb(0, 126, 150));
+                text.Text = "SIMULATION PATH";
+                return;
+            }
+
+            if (normalizedKey.IndexOf("replay", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                border.Background = new SolidColorBrush(Color.FromRgb(255, 246, 222));
+                border.BorderBrush = new SolidColorBrush(Color.FromRgb(229, 184, 96));
+                text.Foreground = new SolidColorBrush(Color.FromRgb(142, 91, 0));
+                text.Text = "REPLAY CAPTURE";
+                return;
+            }
+
+            if (normalizedKey.IndexOf("sdk", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                border.Background = new SolidColorBrush(Color.FromRgb(232, 245, 235));
+                border.BorderBrush = new SolidColorBrush(Color.FromRgb(145, 204, 165));
+                text.Foreground = new SolidColorBrush(Color.FromRgb(25, 115, 75));
+                text.Text = "LIVE SDK PATH";
+                return;
+            }
+
+            border.Background = new SolidColorBrush(Color.FromRgb(233, 225, 212));
+            border.BorderBrush = new SolidColorBrush(Color.FromRgb(207, 197, 181));
+            text.Foreground = new SolidColorBrush(Color.FromRgb(110, 116, 109));
+            text.Text = "SOURCE PENDING";
+        }
+
         private static bool IsSessionConfigurationLocked(MeasurementSessionState state)
         {
             return state == MeasurementSessionState.Measuring || state == MeasurementSessionState.Stationary;
@@ -481,6 +569,10 @@ namespace LaserEnergyMonitor.Wpf
             StabilityText.Text = FormatDouble(snapshot.StabilityMetric);
             StationaryBadgeText.Text = snapshot.IsStationary ? "Stationary" : "Not stationary";
             ApplyStationaryBadgeStyle(snapshot.IsStationary);
+            AddTrendPoint(_beamEnergyTrend, snapshot.FirstEnergy);
+            AddTrendPoint(_ophirEnergyTrend, snapshot.SecondEnergy);
+            AddTrendPoint(_stabilityTrend, snapshot.StabilityMetric);
+            RedrawTrendStrip();
         }
 
         private void ResetLiveValues()
@@ -497,6 +589,93 @@ namespace LaserEnergyMonitor.Wpf
             OutputStatusText.Text = "Ready";
             _stationaryEntries = 0;
             StationaryEntriesText.Text = "0";
+            _beamEnergyTrend.Clear();
+            _ophirEnergyTrend.Clear();
+            _stabilityTrend.Clear();
+            RedrawTrendStrip();
+        }
+
+        private static void AddTrendPoint(List<double> trend, double? value)
+        {
+            if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
+            {
+                return;
+            }
+
+            trend.Add(value.Value);
+            while (trend.Count > TrendPointCapacity)
+            {
+                trend.RemoveAt(0);
+            }
+        }
+
+        private void RedrawTrendStrip()
+        {
+            double width = TrendPlotCanvas.ActualWidth;
+            double height = TrendPlotCanvas.ActualHeight;
+            if (width <= 1.0d || height <= 1.0d)
+            {
+                return;
+            }
+
+            DrawTrendLine(BeamTrendLine, _beamEnergyTrend, width, height);
+            DrawTrendLine(OphirTrendLine, _ophirEnergyTrend, width, height);
+            DrawTrendLine(StabilityTrendLine, _stabilityTrend, width, height);
+            TrendBeamText.Text = BuildTrendLabel("Beam", _beamEnergyTrend);
+            TrendOphirText.Text = BuildTrendLabel("Ophir", _ophirEnergyTrend);
+            TrendStabilityText.Text = BuildTrendLabel("Stability", _stabilityTrend);
+
+            int sampleCount = Math.Max(_beamEnergyTrend.Count, Math.Max(_ophirEnergyTrend.Count, _stabilityTrend.Count));
+            TrendRangeText.Text = sampleCount == 0
+                ? "Waiting for samples"
+                : sampleCount.ToString(CultureInfo.InvariantCulture) + " samples";
+        }
+
+        private static void DrawTrendLine(System.Windows.Shapes.Polyline line, IReadOnlyList<double> values, double width, double height)
+        {
+            PointCollection points = new PointCollection();
+            if (values.Count == 0)
+            {
+                line.Points = points;
+                return;
+            }
+
+            double min = values[0];
+            double max = values[0];
+            for (int i = 1; i < values.Count; i++)
+            {
+                min = Math.Min(min, values[i]);
+                max = Math.Max(max, values[i]);
+            }
+
+            double range = max - min;
+            if (range < 0.000001d)
+            {
+                range = 1.0d;
+                min -= 0.5d;
+            }
+
+            double step = values.Count == 1 ? 0.0d : width / (values.Count - 1);
+            for (int i = 0; i < values.Count; i++)
+            {
+                double normalized = (values[i] - min) / range;
+                double x = values.Count == 1 ? width : i * step;
+                double y = height - (normalized * (height - 8.0d)) - 4.0d;
+                points.Add(new Point(x, y));
+            }
+
+            line.Points = points;
+        }
+
+        private static string BuildTrendLabel(string label, IReadOnlyList<double> values)
+        {
+            if (values.Count == 0)
+            {
+                return label + " --";
+            }
+
+            double latest = values[values.Count - 1];
+            return label + " " + latest.ToString("0.0000", CultureInfo.InvariantCulture);
         }
 
         private void ResetSessionReview()
