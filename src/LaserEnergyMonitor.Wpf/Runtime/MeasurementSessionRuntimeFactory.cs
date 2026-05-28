@@ -205,6 +205,13 @@ namespace LaserEnergyMonitor.Wpf
             DateTime? firstTimestampUtc = null;
             DateTime? lastTimestampUtc = null;
             DeviceFault fault = null;
+            string resolvedSerialNumber = string.Empty;
+            string resolvedChannel = string.Empty;
+            string capturePath = string.Empty;
+            int rawSampleCount = 0;
+            int acceptedSampleCount = 0;
+            int nonZeroStatusCount = 0;
+            string statusPreview = string.Empty;
             string outcome;
             Exception executionException = null;
 
@@ -226,7 +233,8 @@ namespace LaserEnergyMonitor.Wpf
             {
                 try
                 {
-                    using (IMeasurementSource source = ophirSdkOption.CreateSource())
+                    OphirMeasurementSource source = (OphirMeasurementSource)ophirSdkOption.CreateSource();
+                    using (source)
                     {
                         source.MeasurementReceived += delegate(object sender, MeasurementReceivedEventArgs args)
                         {
@@ -248,9 +256,16 @@ namespace LaserEnergyMonitor.Wpf
                         };
 
                         source.Initialize();
+                        resolvedSerialNumber = string.IsNullOrWhiteSpace(source.CurrentSerialNumber) ? "n/a" : source.CurrentSerialNumber;
+                        resolvedChannel = source.CurrentChannel.HasValue ? source.CurrentChannel.Value.ToString() : "n/a";
                         source.Start();
                         Thread.Sleep(_ophirSmokeTestDuration);
                         source.Stop();
+                        capturePath = string.IsNullOrWhiteSpace(source.LastCapturePath) ? "n/a" : source.LastCapturePath;
+                        rawSampleCount = source.RawSampleCount;
+                        acceptedSampleCount = source.AcceptedSampleCount;
+                        nonZeroStatusCount = source.NonZeroStatusCount;
+                        statusPreview = source.StatusPreview;
                     }
 
                     if (fault != null)
@@ -286,6 +301,20 @@ namespace LaserEnergyMonitor.Wpf
                 minEnergy.HasValue && maxEnergy.HasValue
                     ? minEnergy.Value.ToString("0.000000") + " / " + maxEnergy.Value.ToString("0.000000")
                     : "n/a");
+            builder.Append("Resolved serial: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(resolvedSerialNumber) ? "n/a" : resolvedSerialNumber);
+            builder.Append("Resolved channel: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(resolvedChannel) ? "n/a" : resolvedChannel);
+            builder.Append("Capture file: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(capturePath) ? "n/a" : capturePath);
+            builder.Append("Raw samples observed: ");
+            builder.AppendLine(rawSampleCount.ToString());
+            builder.Append("Accepted energy samples: ");
+            builder.AppendLine(acceptedSampleCount.ToString());
+            builder.Append("Non-zero status samples: ");
+            builder.AppendLine(nonZeroStatusCount.ToString());
+            builder.Append("First raw statuses: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(statusPreview) ? "n/a" : statusPreview);
 
             if (fault != null)
             {

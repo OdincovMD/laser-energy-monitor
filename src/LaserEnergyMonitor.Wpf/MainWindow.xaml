@@ -192,7 +192,7 @@
                             <Button x:Name="InitializeButton" Content="Initialize" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8" Click="OnInitializeClicked" />
                             <Button x:Name="SelfTestButton" Content="Self-Test" Style="{StaticResource SecondaryButton}" Margin="0,0,0,8" Click="OnSelfTestClicked" />
                             <Button x:Name="BeamGageTestButton" Content="BeamGage Test" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8" Click="OnBeamGageSmokeTestClicked" />
-                            <Button x:Name="OphirTestButton" Content="Ophir Test" Style="{StaticResource SecondaryButton}" Margin="0,0,0,8" Click="OnOphirSmokeTestClicked" />
+                            <Button x:Name="OphirTestButton" Content="Ophir Smoke-Test" Style="{StaticResource SecondaryButton}" Margin="0,0,0,8" Click="OnOphirSmokeTestClicked" />
                         </UniformGrid>
 
                         <Grid Margin="0,8,0,0">

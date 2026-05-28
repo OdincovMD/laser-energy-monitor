@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LaserEnergyMonitor.Domain;
@@ -7,13 +10,19 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 {
     public sealed class OphirMeasurementSource : IMeasurementSource
     {
+        private const int MaxStatusPreviewEntries = 12;
         private readonly object _gate = new object();
         private readonly OphirMeasurementOptions _options;
+        private readonly List<int> _statusPreview = new List<int>();
         private CancellationTokenSource _cts;
         private Task _pollingTask;
         private StaWorker _staWorker;
         private OphirRuntimeSession _session;
         private OphirCaptureWriter _captureWriter;
+        private string _lastCapturePath;
+        private int _rawSampleCount;
+        private int _acceptedSampleCount;
+        private int _nonZeroStatusCount;
         private long _sequence;
         private bool _streaming;
         private bool _disposed;
@@ -34,6 +43,65 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         }
 
         public bool IsConnected { get; private set; }
+
+        public string CurrentSerialNumber { get; private set; }
+
+        public int? CurrentChannel { get; private set; }
+
+        public string LastCapturePath
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _lastCapturePath;
+                }
+            }
+        }
+
+        public int RawSampleCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _rawSampleCount;
+                }
+            }
+        }
+
+        public int AcceptedSampleCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _acceptedSampleCount;
+                }
+            }
+        }
+
+        public int NonZeroStatusCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _nonZeroStatusCount;
+                }
+            }
+        }
+
+        public string StatusPreview
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return BuildStatusPreview();
+                }
+            }
+        }
 
         public event EventHandler<MeasurementReceivedEventArgs> MeasurementReceived;
         public event EventHandler<DeviceFaultEventArgs> Faulted;
@@ -60,6 +128,8 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                         {
                             return OphirRuntimeSession.Open(_options);
                         });
+                    CurrentSerialNumber = _session.SerialNumber;
+                    CurrentChannel = _session.Channel;
                     IsConnected = true;
                 }
                 catch
@@ -258,8 +328,10 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 int rawStatus = batch.Statuses[i];
                 int measurementType = rawStatus / 0x10000;
                 int status = rawStatus % 0x10000;
+                bool accepted = measurementType == 0 && status == 0;
                 DateTime publishedUtc = ResolveTimestampUtc(batch.RecordedUtc, batch.Timestamps[i]);
                 long sequenceNumber = Interlocked.Increment(ref _sequence);
+                RecordRawStatus(rawStatus, accepted);
 
                 OphirCaptureWriter captureWriter = _captureWriter;
                 if (captureWriter != null)
@@ -267,7 +339,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     captureWriter.Append(sequenceNumber, batch.RecordedUtc, publishedUtc, batch.Timestamps[i], rawStatus, batch.Energies[i]);
                 }
 
-                if (measurementType != 0 || status != 0)
+                if (!accepted)
                 {
                     continue;
                 }
@@ -322,6 +394,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             }
 
             _captureWriter = new OphirCaptureWriter(_options.CaptureDirectoryPath);
+            _lastCapturePath = _captureWriter.CapturePath;
         }
 
         private void DisposeCaptureWriter()
@@ -333,6 +406,56 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 
             _captureWriter.Dispose();
             _captureWriter = null;
+        }
+
+        private void RecordRawStatus(int rawStatus, bool accepted)
+        {
+            lock (_gate)
+            {
+                _rawSampleCount += 1;
+                if (accepted)
+                {
+                    _acceptedSampleCount += 1;
+                }
+                else
+                {
+                    _nonZeroStatusCount += 1;
+                }
+
+                if (_statusPreview.Count < MaxStatusPreviewEntries)
+                {
+                    _statusPreview.Add(rawStatus);
+                }
+            }
+        }
+
+        private string BuildStatusPreview()
+        {
+            if (_statusPreview.Count == 0)
+            {
+                return "n/a";
+            }
+
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < _statusPreview.Count; i++)
+            {
+                if (i > 0)
+                {
+                    builder.Append(", ");
+                }
+
+                int rawStatus = _statusPreview[i];
+                int measurementType = rawStatus / 0x10000;
+                int statusCode = rawStatus % 0x10000;
+                builder.Append(rawStatus.ToString(CultureInfo.InvariantCulture));
+                builder.Append(" (type=");
+                builder.Append(measurementType.ToString(CultureInfo.InvariantCulture));
+                builder.Append(", status=");
+                builder.Append(statusCode.ToString(CultureInfo.InvariantCulture));
+                builder.Append(")");
+            }
+
+            return builder.ToString();
         }
 
         private void ThrowIfDisposed()
