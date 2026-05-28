@@ -488,27 +488,21 @@ namespace LaserEnergyMonitor.Wpf
             SetWorkflowStep(ReviewStepBorder, ReviewStepText, reviewActive, false);
         }
 
-        private static void SetWorkflowStep(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, bool active, bool complete)
+        private void SetWorkflowStep(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, bool active, bool complete)
         {
             if (active)
             {
-                border.Background = new SolidColorBrush(Color.FromRgb(221, 249, 255));
-                border.BorderBrush = new SolidColorBrush(Color.FromRgb(0, 184, 217));
-                text.Foreground = new SolidColorBrush(Color.FromRgb(0, 126, 150));
+                ApplyStatusVisual(border, text, "StatusInfo");
                 return;
             }
 
             if (complete)
             {
-                border.Background = new SolidColorBrush(Color.FromRgb(232, 245, 235));
-                border.BorderBrush = new SolidColorBrush(Color.FromRgb(145, 204, 165));
-                text.Foreground = new SolidColorBrush(Color.FromRgb(25, 115, 75));
+                ApplyStatusVisual(border, text, "StatusSuccess");
                 return;
             }
 
-            border.Background = new SolidColorBrush(Color.FromRgb(233, 225, 212));
-            border.BorderBrush = new SolidColorBrush(Color.FromRgb(207, 197, 181));
-            text.Foreground = new SolidColorBrush(Color.FromRgb(110, 116, 109));
+            ApplyStatusVisual(border, text, "StatusNeutral");
         }
 
         private void UpdateSourceModeBadges(string firstKey, string secondKey)
@@ -517,40 +511,44 @@ namespace LaserEnergyMonitor.Wpf
             SetSourceModeBadge(OphirModeBorder, OphirModeText, secondKey);
         }
 
-        private static void SetSourceModeBadge(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, string key)
+        private void SetSourceModeBadge(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, string key)
         {
             string normalizedKey = key ?? string.Empty;
             if (normalizedKey.IndexOf("sim", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                border.Background = new SolidColorBrush(Color.FromRgb(232, 247, 250));
-                border.BorderBrush = new SolidColorBrush(Color.FromRgb(155, 212, 222));
-                text.Foreground = new SolidColorBrush(Color.FromRgb(0, 126, 150));
+                ApplyStatusVisual(border, text, "StatusInfo");
                 text.Text = "SIMULATION PATH";
                 return;
             }
 
             if (normalizedKey.IndexOf("replay", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                border.Background = new SolidColorBrush(Color.FromRgb(255, 246, 222));
-                border.BorderBrush = new SolidColorBrush(Color.FromRgb(229, 184, 96));
-                text.Foreground = new SolidColorBrush(Color.FromRgb(142, 91, 0));
+                ApplyStatusVisual(border, text, "StatusWarning");
                 text.Text = "REPLAY CAPTURE";
                 return;
             }
 
             if (normalizedKey.IndexOf("sdk", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                border.Background = new SolidColorBrush(Color.FromRgb(232, 245, 235));
-                border.BorderBrush = new SolidColorBrush(Color.FromRgb(145, 204, 165));
-                text.Foreground = new SolidColorBrush(Color.FromRgb(25, 115, 75));
+                ApplyStatusVisual(border, text, "StatusSuccess");
                 text.Text = "LIVE SDK PATH";
                 return;
             }
 
-            border.Background = new SolidColorBrush(Color.FromRgb(233, 225, 212));
-            border.BorderBrush = new SolidColorBrush(Color.FromRgb(207, 197, 181));
-            text.Foreground = new SolidColorBrush(Color.FromRgb(110, 116, 109));
+            ApplyStatusVisual(border, text, "StatusNeutral");
             text.Text = "SOURCE PENDING";
+        }
+
+        private void ApplyStatusVisual(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, string resourcePrefix)
+        {
+            border.Background = GetBrush(resourcePrefix + "BackgroundBrush");
+            border.BorderBrush = GetBrush(resourcePrefix + "BorderBrush");
+            text.Foreground = GetBrush(resourcePrefix + "TextBrush");
+        }
+
+        private Brush GetBrush(string resourceKey)
+        {
+            return (Brush)FindResource(resourceKey);
         }
 
         private static bool IsSessionConfigurationLocked(MeasurementSessionState state)
@@ -779,49 +777,37 @@ namespace LaserEnergyMonitor.Wpf
                     SetInlineStatus(
                         "Initialized",
                         "Sources are ready. Start the session when the operator is ready to collect pulses.",
-                        Color.FromRgb(232, 240, 254),
-                        Color.FromRgb(17, 90, 153),
-                        Color.FromRgb(38, 62, 92));
+                        "StatusInfo");
                     break;
                 case MeasurementSessionState.Measuring:
                     SetInlineStatus(
                         "Measuring",
                         "Samples are flowing. Watch the live energy metrics and wait for stationary entry.",
-                        Color.FromRgb(225, 245, 231),
-                        Color.FromRgb(16, 124, 16),
-                        Color.FromRgb(32, 82, 42));
+                        "StatusSuccess");
                     break;
                 case MeasurementSessionState.Stationary:
                     SetInlineStatus(
                         "Stationary Detected",
                         "A stable segment is active. The session keeps observing for drift or another stable interval.",
-                        Color.FromRgb(255, 244, 214),
-                        Color.FromRgb(114, 76, 0),
-                        Color.FromRgb(97, 71, 24));
+                        "StatusWarning");
                     break;
                 case MeasurementSessionState.Faulted:
                     SetInlineStatus(
                         "Faulted",
                         "The session stopped because a critical device or pipeline fault was reported.",
-                        Color.FromRgb(255, 228, 224),
-                        Color.FromRgb(180, 35, 24),
-                        Color.FromRgb(112, 35, 30));
+                        "StatusDanger");
                     break;
                 case MeasurementSessionState.Completed:
                     SetInlineStatus(
                         "Completed",
                         "The current session finished. Review the final metrics and export artifacts before the next run.",
-                        Color.FromRgb(233, 236, 240),
-                        Color.FromRgb(72, 81, 93),
-                        Color.FromRgb(72, 81, 93));
+                        "StatusNeutral");
                     break;
                 default:
                     SetInlineStatus(
                         "Ready",
                         "Initialize the selected sources to begin a new measurement session.",
-                        Color.FromRgb(232, 240, 254),
-                        Color.FromRgb(17, 90, 153),
-                        Color.FromRgb(38, 62, 92));
+                        "StatusInfo");
                     break;
             }
         }
@@ -836,34 +822,34 @@ namespace LaserEnergyMonitor.Wpf
             switch (sessionEvent.EventType)
             {
                 case SessionEventType.StationaryEntered:
-                    SetInlineStatus("Stationary Entered", sessionEvent.Message, Color.FromRgb(255, 244, 214), Color.FromRgb(114, 76, 0), Color.FromRgb(97, 71, 24));
+                    SetInlineStatus("Stationary Entered", sessionEvent.Message, "StatusWarning");
                     break;
                 case SessionEventType.StationaryExited:
-                    SetInlineStatus("Stationary Exited", sessionEvent.Message, Color.FromRgb(255, 239, 214), Color.FromRgb(157, 87, 0), Color.FromRgb(101, 71, 26));
+                    SetInlineStatus("Stationary Exited", sessionEvent.Message, "StatusWarning");
                     break;
                 case SessionEventType.Desynchronized:
-                    SetInlineStatus("Desynchronization", sessionEvent.Message, Color.FromRgb(255, 244, 214), Color.FromRgb(157, 87, 0), Color.FromRgb(101, 71, 26));
+                    SetInlineStatus("Desynchronization", sessionEvent.Message, "StatusWarning");
                     break;
                 case SessionEventType.Fault:
-                    SetInlineStatus("Critical Fault", sessionEvent.Message, Color.FromRgb(255, 228, 224), Color.FromRgb(180, 35, 24), Color.FromRgb(112, 35, 30));
+                    SetInlineStatus("Critical Fault", sessionEvent.Message, "StatusDanger");
                     break;
                 case SessionEventType.SessionStarted:
-                    SetInlineStatus("Session Started", sessionEvent.Message, Color.FromRgb(225, 245, 231), Color.FromRgb(16, 124, 16), Color.FromRgb(32, 82, 42));
+                    SetInlineStatus("Session Started", sessionEvent.Message, "StatusSuccess");
                     break;
                 case SessionEventType.SessionStopped:
-                    SetInlineStatus("Session Stopped", sessionEvent.Message, Color.FromRgb(233, 236, 240), Color.FromRgb(72, 81, 93), Color.FromRgb(72, 81, 93));
+                    SetInlineStatus("Session Stopped", sessionEvent.Message, "StatusNeutral");
                     break;
             }
         }
 
-        private void SetInlineStatus(string title, string message, Color background, Color titleColor, Color messageColor)
+        private void SetInlineStatus(string title, string message, string resourcePrefix)
         {
-            InlineStatusBorder.Background = new SolidColorBrush(background);
-            InlineStatusBorder.BorderBrush = new SolidColorBrush(titleColor);
+            InlineStatusBorder.Background = GetBrush(resourcePrefix + "BackgroundBrush");
+            InlineStatusBorder.BorderBrush = GetBrush(resourcePrefix + "BorderBrush");
             InlineStatusTitleText.Text = title;
-            InlineStatusTitleText.Foreground = new SolidColorBrush(titleColor);
+            InlineStatusTitleText.Foreground = GetBrush(resourcePrefix + "TextBrush");
             InlineStatusText.Text = message;
-            InlineStatusText.Foreground = new SolidColorBrush(messageColor);
+            InlineStatusText.Foreground = GetBrush(resourcePrefix + "MessageBrush");
         }
 
         private void BindDiagnosticCard(
@@ -882,7 +868,7 @@ namespace LaserEnergyMonitor.Wpf
                 "{0}: {1}",
                 diagnostic != null ? diagnostic.SlotName : "Source",
                 diagnostic != null ? diagnostic.DisplayName : "Unavailable");
-            titleText.Foreground = dependencyAvailable ? new SolidColorBrush(Color.FromRgb(19, 92, 52)) : new SolidColorBrush(Color.FromRgb(156, 43, 32));
+            titleText.Foreground = dependencyAvailable ? GetBrush("StatusSuccessTextBrush") : GetBrush("StatusDangerTextBrush");
             summaryText.Text = probe != null ? probe.Summary : "No diagnostic data available.";
             acquisitionText.Text =
                 diagnostic != null && diagnostic.IsImplemented
@@ -930,34 +916,22 @@ namespace LaserEnergyMonitor.Wpf
             switch (state)
             {
                 case MeasurementSessionState.Initialized:
-                    StateBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(226, 239, 255));
-                    StateBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(184, 211, 244));
-                    StateBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(17, 90, 153));
+                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusInfo");
                     break;
                 case MeasurementSessionState.Measuring:
-                    StateBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(225, 245, 231));
-                    StateBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(183, 227, 194));
-                    StateBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(16, 124, 16));
+                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusSuccess");
                     break;
                 case MeasurementSessionState.Stationary:
-                    StateBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(255, 244, 214));
-                    StateBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(242, 215, 145));
-                    StateBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(114, 76, 0));
+                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusWarning");
                     break;
                 case MeasurementSessionState.Faulted:
-                    StateBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(255, 228, 224));
-                    StateBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(241, 186, 177));
-                    StateBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(180, 35, 24));
+                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusDanger");
                     break;
                 case MeasurementSessionState.Completed:
-                    StateBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(233, 236, 240));
-                    StateBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(205, 211, 218));
-                    StateBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(90, 90, 90));
+                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusNeutral");
                     break;
                 default:
-                    StateBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(38, 57, 82));
-                    StateBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(62, 85, 114));
-                    StateBadgeText.Foreground = Brushes.White;
+                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusNeutral");
                     break;
             }
         }
@@ -966,11 +940,11 @@ namespace LaserEnergyMonitor.Wpf
         {
             if (isStationary)
             {
-                StationaryBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(114, 76, 0));
+                StationaryBadgeText.Foreground = GetBrush("StatusWarningTextBrush");
                 return;
             }
 
-            StationaryBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+            StationaryBadgeText.Foreground = GetBrush("MutedTextBrush");
         }
 
         private static string BuildTerminationText(SessionSummary summary)

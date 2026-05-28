@@ -5,9 +5,9 @@
         Width="1360"
         Height="860"
         MinWidth="1180"
-        MinHeight="760"
+        MinHeight="860"
         WindowStartupLocation="CenterScreen">
-    <Grid Background="{StaticResource PageBrush}" Margin="18">
+    <Grid Background="{StaticResource PageBrush}" Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="82" />
             <RowDefinition Height="14" />
@@ -22,25 +22,25 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Border Background="{StaticResource AccentBrush}" CornerRadius="3" />
+                <Border Background="{StaticResource AccentBrush}" CornerRadius="2" />
                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Text="Laser Energy Monitor"
                                Style="{StaticResource DisplayTitle}" />
                     <TextBlock Text="Diagnostics, acquisition, stability, and export"
-                               Foreground="{StaticResource MutedOnDarkBrush}"
+                               Foreground="{StaticResource MutedTextBrush}"
                                Margin="0,4,0,0" />
                 </StackPanel>
                 <Border x:Name="StateBadgeBorder"
                         Grid.Column="3"
-                        Background="#263952"
-                        BorderBrush="#3E5572"
+                        Background="{StaticResource StatusNeutralBackgroundBrush}"
+                        BorderBrush="{StaticResource StatusNeutralBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="5"
                         Padding="16,9"
                         VerticalAlignment="Center">
                     <TextBlock x:Name="StateBadgeText"
                                Text="Idle"
-                               Foreground="White"
+                               Foreground="{StaticResource StatusNeutralTextBrush}"
                                FontWeight="SemiBold" />
                 </Border>
             </Grid>
@@ -57,7 +57,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="12" />
-                <RowDefinition Height="270" />
+                <RowDefinition Height="300" />
             </Grid.RowDefinitions>
 
             <Border Grid.Column="0" Grid.RowSpan="3" Style="{StaticResource Card}">
@@ -69,16 +69,19 @@
                                    Margin="0,4,0,16" />
 
                         <UniformGrid Columns="3" Height="32" Margin="0,0,0,16">
-                            <Border x:Name="SetupStepBorder" Background="#FFF8EB" BorderBrush="#CFC5B5" BorderThickness="1" CornerRadius="5" Padding="8,7" Margin="0,0,6,0">
+                            <Border x:Name="SetupStepBorder" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="5" Padding="8,7" Margin="0,0,6,0">
                                 <TextBlock x:Name="SetupStepText" Text="SETUP" Style="{StaticResource ChipText}" />
                             </Border>
-                            <Border x:Name="CaptureStepBorder" Background="#E9E1D4" BorderBrush="#CFC5B5" BorderThickness="1" CornerRadius="5" Padding="8,7" Margin="0,0,6,0">
+                            <Border x:Name="CaptureStepBorder" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="5" Padding="8,7" Margin="0,0,6,0">
                                 <TextBlock x:Name="CaptureStepText" Text="CAPTURE" Style="{StaticResource ChipText}" />
                             </Border>
-                            <Border x:Name="ReviewStepBorder" Background="#E9E1D4" BorderBrush="#CFC5B5" BorderThickness="1" CornerRadius="5" Padding="8,7">
+                            <Border x:Name="ReviewStepBorder" Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="5" Padding="8,7">
                                 <TextBlock x:Name="ReviewStepText" Text="REVIEW" Style="{StaticResource ChipText}" />
                             </Border>
                         </UniformGrid>
+
+                        <TextBlock Text="Sources" Style="{StaticResource FieldGroupTitle}" Margin="0,4,0,6" />
+                        <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
 
                         <TextBlock Text="BeamGage" Style="{StaticResource FieldLabel}" />
                         <ComboBox x:Name="BeamSourceComboBox"
@@ -86,8 +89,8 @@
                                   SelectedValuePath="Key"
                                   SelectionChanged="OnSourceSelectionChanged" />
                         <Border x:Name="BeamModeBorder"
-                                Background="#E8F7FA"
-                                BorderBrush="#9BD4DE"
+                                Background="{StaticResource StatusInfoBackgroundBrush}"
+                                BorderBrush="{StaticResource StatusInfoBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="5"
                                 Padding="8,5"
@@ -95,7 +98,7 @@
                                 Height="28">
                             <TextBlock x:Name="BeamModeText"
                                        Text="SIMULATION PATH"
-                                       Foreground="#007E96"
+                                       Foreground="{StaticResource StatusInfoTextBrush}"
                                        Style="{StaticResource ChipText}"
                                        TextAlignment="Left" />
                         </Border>
@@ -106,8 +109,8 @@
                                   SelectedValuePath="Key"
                                   SelectionChanged="OnSourceSelectionChanged" />
                         <Border x:Name="OphirModeBorder"
-                                Background="#E8F7FA"
-                                BorderBrush="#9BD4DE"
+                                Background="{StaticResource StatusInfoBackgroundBrush}"
+                                BorderBrush="{StaticResource StatusInfoBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="5"
                                 Padding="8,5"
@@ -115,12 +118,15 @@
                                 Height="28">
                             <TextBlock x:Name="OphirModeText"
                                        Text="SIMULATION PATH"
-                                       Foreground="#007E96"
+                                       Foreground="{StaticResource StatusInfoTextBrush}"
                                        Style="{StaticResource ChipText}"
                                        TextAlignment="Left" />
                         </Border>
 
-                        <TextBlock Text="Session" Style="{StaticResource FieldLabel}" Margin="0,12,0,5" />
+                        <TextBlock Text="Acquisition" Style="{StaticResource FieldGroupTitle}" />
+                        <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Session" Style="{StaticResource FieldLabel}" />
                         <TextBox x:Name="SessionNameTextBox" Text="Prototype Session" />
 
                         <Grid Margin="0,12,0,0">
@@ -161,7 +167,10 @@
                         <TextBlock Text="Policy" Style="{StaticResource FieldLabel}" Margin="0,12,0,5" />
                         <ComboBox x:Name="PolicyComboBox" DisplayMemberPath="Name" SelectedValuePath="Action" />
 
-                        <TextBlock Text="Export" Style="{StaticResource FieldLabel}" Margin="0,12,0,5" />
+                        <TextBlock Text="Output" Style="{StaticResource FieldGroupTitle}" />
+                        <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Export" Style="{StaticResource FieldLabel}" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -176,7 +185,10 @@
                                     Click="OnBrowseClicked" />
                         </Grid>
 
-                        <UniformGrid Columns="2" Margin="0,18,0,0">
+                        <TextBlock Text="Actions" Style="{StaticResource FieldGroupTitle}" />
+                        <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
+
+                        <UniformGrid Columns="2" Margin="0,0,0,0">
                             <Button x:Name="InitializeButton" Content="Initialize" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8" Click="OnInitializeClicked" />
                             <Button x:Name="SelfTestButton" Content="Self-Test" Style="{StaticResource SecondaryButton}" Margin="0,0,0,8" Click="OnSelfTestClicked" />
                             <Button x:Name="BeamGageTestButton" Content="BeamGage Test" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8" Click="OnBeamGageSmokeTestClicked" />
@@ -215,13 +227,15 @@
                             <TextBlock x:Name="InlineStatusText"
                                        Text="Configure sources and initialize the session."
                                        Foreground="{StaticResource MutedTextBrush}"
-                                       Margin="0,3,0,0"
+                                       Margin="0,3,12,0"
+                                       MaxHeight="38"
+                                       TextWrapping="Wrap"
                                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                         </StackPanel>
                         <Border x:Name="InlineStatusBorder"
                                 Grid.Column="1"
-                                Background="{StaticResource AccentSoftBrush}"
-                                BorderBrush="{StaticResource AccentBrush}"
+                                Background="{StaticResource StatusInfoBackgroundBrush}"
+                                BorderBrush="{StaticResource StatusInfoBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
                                 Padding="14,9"
@@ -229,7 +243,7 @@
                             <StackPanel>
                                 <TextBlock x:Name="InlineStatusTitleText"
                                            Text="Ready"
-                                           Foreground="#0F4E8C"
+                                           Foreground="{StaticResource StatusInfoTextBrush}"
                                            FontWeight="SemiBold"
                                            MaxWidth="180"
                                            ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
@@ -270,40 +284,40 @@
                             </Grid>
                             <Canvas x:Name="TrendPlotCanvas"
                                     Grid.Row="2"
-                                    Background="#101C2A"
+                                    Background="#FFFFFF"
                                     ClipToBounds="True"
                                     SizeChanged="OnTrendPlotSizeChanged">
-                                <Line X1="0" Y1="20" X2="900" Y2="20" Stroke="#22384A" StrokeThickness="1" />
-                                <Line X1="0" Y1="48" X2="900" Y2="48" Stroke="#22384A" StrokeThickness="1" />
-                                <Line X1="0" Y1="76" X2="900" Y2="76" Stroke="#22384A" StrokeThickness="1" />
+                                <Line X1="0" Y1="20" X2="900" Y2="20" Stroke="#D7E0EA" StrokeThickness="1" />
+                                <Line X1="0" Y1="48" X2="900" Y2="48" Stroke="#D7E0EA" StrokeThickness="1" />
+                                <Line X1="0" Y1="76" X2="900" Y2="76" Stroke="#D7E0EA" StrokeThickness="1" />
                                 <Polyline x:Name="BeamTrendLine"
-                                          Stroke="#00B8D9"
+                                          Stroke="#1F6FBF"
                                           StrokeThickness="2"
                                           StrokeLineJoin="Round" />
                                 <Polyline x:Name="OphirTrendLine"
-                                          Stroke="#E5A72E"
+                                          Stroke="#B7791F"
                                           StrokeThickness="2"
                                           StrokeLineJoin="Round" />
                                 <Polyline x:Name="StabilityTrendLine"
-                                          Stroke="#2EA56F"
+                                          Stroke="#1F7A4D"
                                           StrokeThickness="2"
                                           StrokeLineJoin="Round" />
                             </Canvas>
                             <UniformGrid Grid.Row="4" Columns="3">
                                 <TextBlock x:Name="TrendBeamText"
                                            Text="Beam --"
-                                           Foreground="#007E96"
+                                           Foreground="{StaticResource AccentBrush}"
                                            FontSize="12"
                                            FontWeight="SemiBold" />
                                 <TextBlock x:Name="TrendOphirText"
                                            Text="Ophir --"
-                                           Foreground="#9C6B00"
+                                           Foreground="{StaticResource WarningBrush}"
                                            FontSize="12"
                                            FontWeight="SemiBold"
                                            TextAlignment="Center" />
                                 <TextBlock x:Name="TrendStabilityText"
                                            Text="Stability --"
-                                           Foreground="#19734B"
+                                           Foreground="{StaticResource SuccessBrush}"
                                            FontSize="12"
                                            FontWeight="SemiBold"
                                            TextAlignment="Right" />
@@ -312,55 +326,55 @@
                     </Border>
 
                     <UniformGrid Grid.Row="4" Columns="3" Rows="3">
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="Pair ID" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="PairIdText" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="Last Update" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="LastUpdateText" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="Stability" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="StabilityText" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="BeamGage Energy" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="BeamEnergyText" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="Ophir Energy" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="OphirEnergyText" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="Stationary Entries" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="StationaryEntriesText" Text="0" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="BeamGage Average" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="BeamAverageText" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="Ophir Average" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="OphirAverageText" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Padding="14">
+                        <Border Style="{StaticResource MetricTile}" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="Output" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="OutputStatusText" Text="Ready" Style="{StaticResource MetricValue}" FontSize="16" />
@@ -482,7 +496,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="8" />
-                        <RowDefinition Height="132" />
+                        <RowDefinition Height="162" />
                         <RowDefinition Height="8" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
@@ -491,55 +505,55 @@
                         <TextBlock x:Name="SummaryText" Text="No completed session yet" Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" TextWrapping="Wrap" MaxHeight="34" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                     </StackPanel>
                     <UniformGrid Grid.Row="2" Columns="3" Rows="3">
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="Outcome" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummaryOutcomeText" Text="Waiting" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="State" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummaryFinalStateText" Text="-" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="Finished" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummaryFinishedText" Text="-" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="Pairs" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummaryPairsText" Text="0" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="Events" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummaryEventsCountText" Text="0" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="Segments" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummarySegmentsText" Text="0" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="Desync" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummaryDesyncText" Text="0" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="Faults" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummaryFaultsText" Text="0" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Padding="8">
+                        <Border Style="{StaticResource MetricTile}" Padding="6">
                             <StackPanel>
                                 <TextBlock Text="Termination" Style="{StaticResource FieldLabel}" />
                                 <TextBlock x:Name="SummaryTerminationText" Text="-" Style="{StaticResource CompactMetricValue}" />
