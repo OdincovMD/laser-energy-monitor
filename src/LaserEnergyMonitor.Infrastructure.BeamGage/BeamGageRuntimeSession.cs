@@ -51,6 +51,12 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
         internal string CurrentWaveLength { get; private set; }
 
+        internal string CurrentEnergyUnitBase { get; private set; }
+
+        internal string CurrentEnergyUnitQuantifier { get; private set; }
+
+        internal double? CurrentScaleMultiplier { get; private set; }
+
         internal bool IsOnline
         {
             get
@@ -85,6 +91,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             {
                 ConfigureDataSource(beamGage, effectiveOptions);
                 ConfigurePowerMeter(beamGage, effectiveOptions);
+                ConfigurePowerEnergy(beamGage, effectiveOptions);
 
                 object resultsPriorityFrame = GetPropertyValue(beamGage, "ResultsPriorityFrame");
                 Type frameEventsType = GetRequiredType(AutomationAssemblyName, FrameEventsTypeName);
@@ -98,6 +105,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                     Convert.ToString(GetPropertyValue(GetPropertyValue(beamGage, "DataSource"), "DataSource"), CultureInfo.InvariantCulture),
                     Convert.ToString(GetPropertyValue(GetPropertyValue(beamGage, "PowerMeter"), "PowerMeter"), CultureInfo.InvariantCulture),
                     Convert.ToString(GetPropertyValue(GetPropertyValue(beamGage, "PowerMeter"), "WaveLength"), CultureInfo.InvariantCulture));
+                session.RefreshFrameMetadata();
 
                 MethodInfo callbackMethod = typeof(BeamGageRuntimeSession).GetMethod(
                     "OnRemoteNewFrame",
@@ -202,6 +210,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
         private BeamGageFrameSnapshot ReadSnapshot()
         {
             DateTime recordedUtc = DateTime.UtcNow;
+            object resultsPriorityFrame = GetPropertyValue(_beamGage, "ResultsPriorityFrame");
             object frameInfoResults = GetPropertyValue(_beamGage, "FrameInfoResults");
             object powerEnergyResults = GetPropertyValue(_beamGage, "PowerEnergyResults");
 
@@ -210,6 +219,9 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 CultureInfo.InvariantCulture);
             double totalEnergy = ToDouble(GetPropertyValue(powerEnergyResults, "Total"));
             double timestampOaDate = ToDouble(GetPropertyValue(frameInfoResults, "Timestamp"));
+            CurrentEnergyUnitBase = Convert.ToString(GetPropertyValue(resultsPriorityFrame, "EnergyUnitsBase"), CultureInfo.InvariantCulture);
+            CurrentEnergyUnitQuantifier = Convert.ToString(GetPropertyValue(resultsPriorityFrame, "EnergyUnitsQuantifier"), CultureInfo.InvariantCulture);
+            CurrentScaleMultiplier = TryToNullableDouble(GetPropertyValue(frameInfoResults, "ScaleMultiplier"));
 
             return new BeamGageFrameSnapshot(
                 frameId,
@@ -288,6 +300,47 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             {
                 SetPropertyValue(powerMeter, "WaveLength", selectedWaveLength);
             }
+        }
+
+        private static void ConfigurePowerEnergy(object beamGage, BeamGageMeasurementOptions options)
+        {
+            object powerEnergy = GetPropertyValue(beamGage, "PowerEnergy");
+            if (powerEnergy == null)
+            {
+                return;
+            }
+
+            if (options.ResetPowerEnergyCalibrationOnStart)
+            {
+                InvokeMethod(powerEnergy, "RemoveCalibration");
+            }
+
+            if (!options.PowerEnergyCalibrationValue.HasValue)
+            {
+                return;
+            }
+
+            Type unitBaseType = GetRequiredType(AutomationAssemblyName, "Spiricon.Automation.AutomationPwrEngyUnitBase");
+            object unitBase = ParseEnumValue(
+                unitBaseType,
+                options.PowerEnergyCalibrationUnitBase,
+                "BeamGage power/energy calibration base unit",
+                "JOULES");
+
+            if (string.IsNullOrWhiteSpace(options.PowerEnergyCalibrationUnitQuantifier))
+            {
+                InvokeMethod(powerEnergy, "CalibrateFrame", options.PowerEnergyCalibrationValue.Value, unitBase);
+                return;
+            }
+
+            Type quantifierType = GetRequiredType(AutomationAssemblyName, "Spiricon.Automation.AutomationPwrEngyUnitQuantifier");
+            object quantifier = ParseEnumValue(
+                quantifierType,
+                options.PowerEnergyCalibrationUnitQuantifier,
+                "BeamGage power/energy calibration quantifier",
+                null);
+
+            InvokeMethod(powerEnergy, "CalibrateFrame", options.PowerEnergyCalibrationValue.Value, unitBase, quantifier);
         }
 
         private static string ResolvePreferredItem(string[] items, string preferredValue)
@@ -530,8 +583,30 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 DataSource = options.DataSource,
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
-                TimestampStrategy = options.TimestampStrategy
+                TimestampStrategy = options.TimestampStrategy,
+                ResetPowerEnergyCalibrationOnStart = options.ResetPowerEnergyCalibrationOnStart,
+                PowerEnergyCalibrationValue = options.PowerEnergyCalibrationValue,
+                PowerEnergyCalibrationUnitBase = options.PowerEnergyCalibrationUnitBase,
+                PowerEnergyCalibrationUnitQuantifier = options.PowerEnergyCalibrationUnitQuantifier
             };
+        }
+
+        private void RefreshFrameMetadata()
+        {
+            try
+            {
+                object resultsPriorityFrame = GetPropertyValue(_beamGage, "ResultsPriorityFrame");
+                object frameInfoResults = GetPropertyValue(_beamGage, "FrameInfoResults");
+                CurrentEnergyUnitBase = Convert.ToString(GetPropertyValue(resultsPriorityFrame, "EnergyUnitsBase"), CultureInfo.InvariantCulture);
+                CurrentEnergyUnitQuantifier = Convert.ToString(GetPropertyValue(resultsPriorityFrame, "EnergyUnitsQuantifier"), CultureInfo.InvariantCulture);
+                CurrentScaleMultiplier = TryToNullableDouble(GetPropertyValue(frameInfoResults, "ScaleMultiplier"));
+            }
+            catch
+            {
+                CurrentEnergyUnitBase = string.Empty;
+                CurrentEnergyUnitQuantifier = string.Empty;
+                CurrentScaleMultiplier = null;
+            }
         }
 
         private static void ShutdownBeamGage(object beamGage)
@@ -629,6 +704,48 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
         private static double ToDouble(object value)
         {
             return Convert.ToDouble(value, CultureInfo.InvariantCulture);
+        }
+
+        private static double? TryToNullableDouble(object value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return ToDouble(value);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static object ParseEnumValue(Type enumType, string rawValue, string optionName, string fallbackValue)
+        {
+            if (enumType == null)
+            {
+                throw new ArgumentNullException("enumType");
+            }
+
+            string effectiveValue = string.IsNullOrWhiteSpace(rawValue) ? fallbackValue : rawValue;
+            if (string.IsNullOrWhiteSpace(effectiveValue))
+            {
+                throw new InvalidOperationException(optionName + " is required.");
+            }
+
+            try
+            {
+                return Enum.Parse(enumType, effectiveValue, true);
+            }
+            catch (ArgumentException)
+            {
+                throw new InvalidOperationException(
+                    optionName + " is invalid: " + effectiveValue + ". " +
+                    "Expected one of the BeamGage vendor enum values.");
+            }
         }
 
         private void ThrowIfDisposed()

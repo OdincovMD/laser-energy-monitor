@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.Configuration" />
@@ -11,5 +12,8 @@
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.Ophir\LaserEnergyMonitor.Infrastructure.Ophir.csproj" />
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.Excel\LaserEnergyMonitor.Infrastructure.Excel.csproj" />
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.Logging\LaserEnergyMonitor.Infrastructure.Logging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\AppIcon.png" />
   </ItemGroup>
 </Project>

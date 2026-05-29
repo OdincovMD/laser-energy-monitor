@@ -26,5 +26,13 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
         public string WaveLength { get; set; }
 
         public BeamGageTimestampStrategy TimestampStrategy { get; set; }
+
+        public bool ResetPowerEnergyCalibrationOnStart { get; set; }
+
+        public double? PowerEnergyCalibrationValue { get; set; }
+
+        public string PowerEnergyCalibrationUnitBase { get; set; }
+
+        public string PowerEnergyCalibrationUnitQuantifier { get; set; }
     }
 }

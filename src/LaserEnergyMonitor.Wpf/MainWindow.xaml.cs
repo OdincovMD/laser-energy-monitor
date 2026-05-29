@@ -13,13 +13,13 @@ namespace LaserEnergyMonitor.Wpf
     public partial class MainWindow : Window
     {
         private const int MaxEventEntries = 500;
-        private const int MaxSegmentEntries = 100;
         private const int TrendPointCapacity = 90;
         private readonly MeasurementSessionRuntimeFactory _runtimeFactory;
         private readonly string _defaultOutputDir;
         private readonly List<double> _beamEnergyTrend = new List<double>();
         private readonly List<double> _ophirEnergyTrend = new List<double>();
         private readonly List<double> _stabilityTrend = new List<double>();
+        private readonly List<string> _eventLines = new List<string>();
         private MeasurementSessionService _service;
         private string _activeFirstSourceKey;
         private string _activeSecondSourceKey;
@@ -192,7 +192,11 @@ namespace LaserEnergyMonitor.Wpf
 
         private void OnClearEventsClicked(object sender, RoutedEventArgs e)
         {
-            EventsListBox.Items.Clear();
+            _eventLines.Clear();
+            if (EventsTextBox != null)
+            {
+                EventsTextBox.Clear();
+            }
         }
 
         private void OnSourceSelectionChanged(object sender, EventArgs e)
@@ -259,7 +263,6 @@ namespace LaserEnergyMonitor.Wpf
             service.StateChanged += OnServiceStateChanged;
             service.LiveMeasurementUpdated += OnLiveMeasurementUpdated;
             service.SessionEventRaised += OnSessionEventRaised;
-            service.StationarySegmentRecorded += OnStationarySegmentRecorded;
             service.SessionSummaryAvailable += OnSessionSummaryAvailable;
         }
 
@@ -270,7 +273,6 @@ namespace LaserEnergyMonitor.Wpf
                 _service.StateChanged -= OnServiceStateChanged;
                 _service.LiveMeasurementUpdated -= OnLiveMeasurementUpdated;
                 _service.SessionEventRaised -= OnSessionEventRaised;
-                _service.StationarySegmentRecorded -= OnStationarySegmentRecorded;
                 _service.SessionSummaryAvailable -= OnSessionSummaryAvailable;
                 _service.Dispose();
             }
@@ -298,6 +300,11 @@ namespace LaserEnergyMonitor.Wpf
             RedrawTrendStrip();
         }
 
+        private void OnTrendPlotLoaded(object sender, RoutedEventArgs e)
+        {
+            RedrawTrendStrip();
+        }
+
         private void OnSessionEventRaised(object sender, SessionEventRaisedEventArgs args)
         {
             Dispatcher.BeginInvoke(
@@ -305,7 +312,6 @@ namespace LaserEnergyMonitor.Wpf
                     delegate
                     {
                         SessionEvent sessionEvent = args != null ? args.SessionEvent : null;
-                        UpdateInlineStatusForEvent(sessionEvent);
                         if (sessionEvent != null && sessionEvent.EventType == SessionEventType.StationaryEntered)
                         {
                             _stationaryEntries += 1;
@@ -313,26 +319,6 @@ namespace LaserEnergyMonitor.Wpf
                         }
 
                         AddEvent(FormatEvent(sessionEvent));
-                    }));
-        }
-
-        private void OnStationarySegmentRecorded(object sender, StationarySegmentRecordedEventArgs args)
-        {
-            Dispatcher.BeginInvoke(
-                new Action(
-                    delegate
-                    {
-                        StationarySegmentResult segment = args != null ? args.Segment : null;
-                        if (segment == null)
-                        {
-                            return;
-                        }
-
-                        SegmentsListBox.Items.Insert(0, FormatSegment(segment));
-                        while (SegmentsListBox.Items.Count > MaxSegmentEntries)
-                        {
-                            SegmentsListBox.Items.RemoveAt(SegmentsListBox.Items.Count - 1);
-                        }
                     }));
         }
 
@@ -395,7 +381,6 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             DiagnosticsReportTextBox.Text = _runtimeFactory.BuildDiagnostics(firstKey, secondKey);
-            UpdateSourceModeBadges(firstKey, secondKey);
 
             var diagnostics = _runtimeFactory.GetDiagnostics(firstKey, secondKey);
             if (diagnostics.Count > 0)
@@ -405,7 +390,7 @@ namespace LaserEnergyMonitor.Wpf
                     BeamDiagnosticTitleText,
                     BeamDiagnosticSummaryText,
                     BeamAcquisitionText,
-                    BeamDiagnosticStepsList,
+                    BeamDiagnosticStepsText,
                     BeamDiagnosticDetailsText);
             }
 
@@ -416,15 +401,13 @@ namespace LaserEnergyMonitor.Wpf
                     OphirDiagnosticTitleText,
                     OphirDiagnosticSummaryText,
                     OphirAcquisitionText,
-                    OphirDiagnosticStepsList,
+                    OphirDiagnosticStepsText,
                     OphirDiagnosticDetailsText);
             }
         }
 
         private void UpdateState(MeasurementSessionState state)
         {
-            StateBadgeText.Text = state.ToString();
-            InlineStatusText.Text = BuildStateMessage(state);
             bool locked = IsSessionConfigurationLocked(state);
             StartButton.IsEnabled =
                 state == MeasurementSessionState.Idle ||
@@ -452,98 +435,6 @@ namespace LaserEnergyMonitor.Wpf
             {
                 ResetLiveValues();
             }
-
-            ApplyStateBadgeStyle(state);
-            UpdateInlineStatusForState(state);
-            UpdateWorkflowStyle(state);
-        }
-
-        private static string BuildStateMessage(MeasurementSessionState state)
-        {
-            switch (state)
-            {
-                case MeasurementSessionState.Initialized:
-                    return "Sources are ready. Start acquisition when the stand is prepared.";
-                case MeasurementSessionState.Measuring:
-                    return "Samples are flowing. Watch pairing, energy, and stability.";
-                case MeasurementSessionState.Stationary:
-                    return "Stationary mode is active.";
-                case MeasurementSessionState.Faulted:
-                    return "A critical fault stopped the session.";
-                case MeasurementSessionState.Completed:
-                    return "Session completed. Review summary and export.";
-                default:
-                    return "Configure sources and initialize the session.";
-            }
-        }
-
-        private void UpdateWorkflowStyle(MeasurementSessionState state)
-        {
-            bool setupActive = state == MeasurementSessionState.Idle || state == MeasurementSessionState.Initialized;
-            bool captureActive = state == MeasurementSessionState.Measuring || state == MeasurementSessionState.Stationary;
-            bool reviewActive = state == MeasurementSessionState.Completed || state == MeasurementSessionState.Faulted;
-
-            SetWorkflowStep(SetupStepBorder, SetupStepText, setupActive, !setupActive);
-            SetWorkflowStep(CaptureStepBorder, CaptureStepText, captureActive, reviewActive);
-            SetWorkflowStep(ReviewStepBorder, ReviewStepText, reviewActive, false);
-        }
-
-        private void SetWorkflowStep(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, bool active, bool complete)
-        {
-            if (active)
-            {
-                ApplyStatusVisual(border, text, "StatusInfo");
-                return;
-            }
-
-            if (complete)
-            {
-                ApplyStatusVisual(border, text, "StatusSuccess");
-                return;
-            }
-
-            ApplyStatusVisual(border, text, "StatusNeutral");
-        }
-
-        private void UpdateSourceModeBadges(string firstKey, string secondKey)
-        {
-            SetSourceModeBadge(BeamModeBorder, BeamModeText, firstKey);
-            SetSourceModeBadge(OphirModeBorder, OphirModeText, secondKey);
-        }
-
-        private void SetSourceModeBadge(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, string key)
-        {
-            string normalizedKey = key ?? string.Empty;
-            if (normalizedKey.IndexOf("sim", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                ApplyStatusVisual(border, text, "StatusInfo");
-                text.Text = "SIMULATION PATH";
-                return;
-            }
-
-            if (normalizedKey.IndexOf("replay", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                ApplyStatusVisual(border, text, "StatusWarning");
-                text.Text = "REPLAY CAPTURE";
-                return;
-            }
-
-            if (normalizedKey.IndexOf("sdk", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                ApplyStatusVisual(border, text, "StatusSuccess");
-                text.Text = "LIVE SDK PATH";
-                return;
-            }
-
-            ApplyStatusVisual(border, text, "StatusNeutral");
-            text.Text = "SOURCE PENDING";
-        }
-
-        private void ApplyStatusVisual(System.Windows.Controls.Border border, System.Windows.Controls.TextBlock text, string resourcePrefix)
-        {
-            border.Background = GetBrush(resourcePrefix + "BackgroundBrush");
-            border.BorderBrush = GetBrush(resourcePrefix + "BorderBrush");
-            text.Foreground = GetBrush(resourcePrefix + "TextBrush");
         }
 
         private Brush GetBrush(string resourceKey)
@@ -565,8 +456,6 @@ namespace LaserEnergyMonitor.Wpf
             BeamAverageText.Text = FormatDouble(snapshot.FirstAverage);
             OphirAverageText.Text = FormatDouble(snapshot.SecondAverage);
             StabilityText.Text = FormatDouble(snapshot.StabilityMetric);
-            StationaryBadgeText.Text = snapshot.IsStationary ? "Stationary" : "Not stationary";
-            ApplyStationaryBadgeStyle(snapshot.IsStationary);
             AddTrendPoint(_beamEnergyTrend, snapshot.FirstEnergy);
             AddTrendPoint(_ophirEnergyTrend, snapshot.SecondEnergy);
             AddTrendPoint(_stabilityTrend, snapshot.StabilityMetric);
@@ -582,9 +471,6 @@ namespace LaserEnergyMonitor.Wpf
             BeamAverageText.Text = "-";
             OphirAverageText.Text = "-";
             StabilityText.Text = "-";
-            StationaryBadgeText.Text = "Not stationary";
-            ApplyStationaryBadgeStyle(false);
-            OutputStatusText.Text = "Ready";
             _stationaryEntries = 0;
             StationaryEntriesText.Text = "0";
             _beamEnergyTrend.Clear();
@@ -653,11 +539,22 @@ namespace LaserEnergyMonitor.Wpf
                 min -= 0.5d;
             }
 
-            double step = values.Count == 1 ? 0.0d : width / (values.Count - 1);
+            if (values.Count == 1)
+            {
+                double normalizedSingle = (values[0] - min) / range;
+                double singleY = height - (normalizedSingle * (height - 8.0d)) - 4.0d;
+                double centerX = width / 2.0d;
+                points.Add(new Point(Math.Max(0.0d, centerX - 8.0d), singleY));
+                points.Add(new Point(Math.Min(width, centerX + 8.0d), singleY));
+                line.Points = points;
+                return;
+            }
+
+            double step = width / (values.Count - 1);
             for (int i = 0; i < values.Count; i++)
             {
                 double normalized = (values[i] - min) / range;
-                double x = values.Count == 1 ? width : i * step;
+                double x = i * step;
                 double y = height - (normalized * (height - 8.0d)) - 4.0d;
                 points.Add(new Point(x, y));
             }
@@ -678,18 +575,10 @@ namespace LaserEnergyMonitor.Wpf
 
         private void ResetSessionReview()
         {
-            SummaryText.Text = "No completed session yet";
-            SummaryOutcomeText.Text = "Waiting";
-            SummaryFinalStateText.Text = "-";
-            SummaryFinishedText.Text = "-";
             SummaryPairsText.Text = "0";
             SummaryEventsCountText.Text = "0";
             SummarySegmentsText.Text = "0";
-            SummaryDesyncText.Text = "0";
             SummaryFaultsText.Text = "0";
-            SummaryTerminationText.Text = "-";
-            SummaryTerminationText.ToolTip = null;
-            SegmentsListBox.Items.Clear();
         }
 
         private static string FormatDouble(double? value)
@@ -699,10 +588,16 @@ namespace LaserEnergyMonitor.Wpf
 
         private void AddEvent(string message)
         {
-            EventsListBox.Items.Insert(0, DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + "  " + message);
-            while (EventsListBox.Items.Count > MaxEventEntries)
+            _eventLines.Insert(0, DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + "  " + message);
+            while (_eventLines.Count > MaxEventEntries)
             {
-                EventsListBox.Items.RemoveAt(EventsListBox.Items.Count - 1);
+                _eventLines.RemoveAt(_eventLines.Count - 1);
+            }
+
+            if (EventsTextBox != null)
+            {
+                EventsTextBox.Text = string.Join(Environment.NewLine, _eventLines);
+                EventsTextBox.ScrollToHome();
             }
         }
 
@@ -721,25 +616,6 @@ namespace LaserEnergyMonitor.Wpf
                 sessionEvent.Message);
         }
 
-        private static string FormatSegment(StationarySegmentResult segment)
-        {
-            if (segment == null)
-            {
-                return "Segment data unavailable.";
-            }
-
-            return string.Format(
-                CultureInfo.InvariantCulture,
-                "Segment #{0} | Pair {1} -> {2} | Avg {3}/{4} | {5} ms | {6}",
-                segment.SegmentId,
-                segment.EntryPairId,
-                segment.ExitPairId.HasValue ? segment.ExitPairId.Value.ToString(CultureInfo.InvariantCulture) : "-",
-                segment.EntryFirstAverage.ToString("0.0000", CultureInfo.InvariantCulture),
-                segment.EntrySecondAverage.ToString("0.0000", CultureInfo.InvariantCulture),
-                segment.DurationMs.HasValue ? segment.DurationMs.Value.ToString("0.0", CultureInfo.InvariantCulture) : "-",
-                string.IsNullOrWhiteSpace(segment.ExitReason) ? "Closed" : segment.ExitReason);
-        }
-
         private void UpdateSummary(SessionSummary summary)
         {
             if (summary == null)
@@ -748,108 +624,10 @@ namespace LaserEnergyMonitor.Wpf
                 return;
             }
 
-            SummaryText.Text = string.Format(
-                CultureInfo.InvariantCulture,
-                "{0}: {1} pairs, {2} events, {3} desync, {4} faults",
-                summary.FinalState,
-                summary.PairCount,
-                summary.EventCount,
-                summary.DesynchronizationCount,
-                summary.FaultCount);
-            SummaryOutcomeText.Text = summary.CompletedNormally ? "Completed" : "Aborted";
-            SummaryFinalStateText.Text = string.IsNullOrWhiteSpace(summary.FinalState) ? "-" : summary.FinalState;
-            SummaryFinishedText.Text = summary.FinishedUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture);
             SummaryPairsText.Text = summary.PairCount.ToString(CultureInfo.InvariantCulture);
             SummaryEventsCountText.Text = summary.EventCount.ToString(CultureInfo.InvariantCulture);
             SummarySegmentsText.Text = summary.ClosedStationarySegmentCount.ToString(CultureInfo.InvariantCulture);
-            SummaryDesyncText.Text = summary.DesynchronizationCount.ToString(CultureInfo.InvariantCulture);
             SummaryFaultsText.Text = summary.FaultCount.ToString(CultureInfo.InvariantCulture);
-            SummaryTerminationText.Text = BuildTerminationText(summary);
-            SummaryTerminationText.ToolTip = BuildTerminationTooltip(summary);
-            OutputStatusText.Text = summary.CompletedNormally ? "Exported" : "Stopped";
-        }
-
-        private void UpdateInlineStatusForState(MeasurementSessionState state)
-        {
-            switch (state)
-            {
-                case MeasurementSessionState.Initialized:
-                    SetInlineStatus(
-                        "Initialized",
-                        "Sources are ready. Start the session when the operator is ready to collect pulses.",
-                        "StatusInfo");
-                    break;
-                case MeasurementSessionState.Measuring:
-                    SetInlineStatus(
-                        "Measuring",
-                        "Samples are flowing. Watch the live energy metrics and wait for stationary entry.",
-                        "StatusSuccess");
-                    break;
-                case MeasurementSessionState.Stationary:
-                    SetInlineStatus(
-                        "Stationary Detected",
-                        "A stable segment is active. The session keeps observing for drift or another stable interval.",
-                        "StatusWarning");
-                    break;
-                case MeasurementSessionState.Faulted:
-                    SetInlineStatus(
-                        "Faulted",
-                        "The session stopped because a critical device or pipeline fault was reported.",
-                        "StatusDanger");
-                    break;
-                case MeasurementSessionState.Completed:
-                    SetInlineStatus(
-                        "Completed",
-                        "The current session finished. Review the final metrics and export artifacts before the next run.",
-                        "StatusNeutral");
-                    break;
-                default:
-                    SetInlineStatus(
-                        "Ready",
-                        "Initialize the selected sources to begin a new measurement session.",
-                        "StatusInfo");
-                    break;
-            }
-        }
-
-        private void UpdateInlineStatusForEvent(SessionEvent sessionEvent)
-        {
-            if (sessionEvent == null)
-            {
-                return;
-            }
-
-            switch (sessionEvent.EventType)
-            {
-                case SessionEventType.StationaryEntered:
-                    SetInlineStatus("Stationary Entered", sessionEvent.Message, "StatusWarning");
-                    break;
-                case SessionEventType.StationaryExited:
-                    SetInlineStatus("Stationary Exited", sessionEvent.Message, "StatusWarning");
-                    break;
-                case SessionEventType.Desynchronized:
-                    SetInlineStatus("Desynchronization", sessionEvent.Message, "StatusWarning");
-                    break;
-                case SessionEventType.Fault:
-                    SetInlineStatus("Critical Fault", sessionEvent.Message, "StatusDanger");
-                    break;
-                case SessionEventType.SessionStarted:
-                    SetInlineStatus("Session Started", sessionEvent.Message, "StatusSuccess");
-                    break;
-                case SessionEventType.SessionStopped:
-                    SetInlineStatus("Session Stopped", sessionEvent.Message, "StatusNeutral");
-                    break;
-            }
-        }
-
-        private void SetInlineStatus(string title, string message, string resourcePrefix)
-        {
-            InlineStatusBorder.Background = GetBrush(resourcePrefix + "BackgroundBrush");
-            InlineStatusBorder.BorderBrush = GetBrush(resourcePrefix + "BorderBrush");
-            InlineStatusTitleText.Text = title;
-            InlineStatusTitleText.Foreground = GetBrush(resourcePrefix + "TextBrush");
-            InlineStatusText.Text = message;
-            InlineStatusText.Foreground = GetBrush(resourcePrefix + "MessageBrush");
         }
 
         private void BindDiagnosticCard(
@@ -857,7 +635,7 @@ namespace LaserEnergyMonitor.Wpf
             System.Windows.Controls.TextBlock titleText,
             System.Windows.Controls.TextBlock summaryText,
             System.Windows.Controls.TextBlock acquisitionText,
-            System.Windows.Controls.ListBox stepsList,
+            System.Windows.Controls.TextBox stepsText,
             System.Windows.Controls.TextBox detailsText)
         {
             MeasurementSourceRuntimeProbeResult probe = diagnostic != null ? diagnostic.Probe : null;
@@ -872,127 +650,49 @@ namespace LaserEnergyMonitor.Wpf
             summaryText.Text = probe != null ? probe.Summary : "No diagnostic data available.";
             acquisitionText.Text =
                 diagnostic != null && diagnostic.IsImplemented
-                    ? "Live acquisition is available in this build."
-                    : "Live acquisition is not wired in this build.";
+                    ? "Acquisition available in this build."
+                    : "Acquisition not wired in this build.";
 
-            stepsList.Items.Clear();
-            if (probe != null && probe.Steps != null && probe.Steps.Count > 0)
+            stepsText.Text = BuildStepsText(probe);
+            detailsText.Text = probe != null && !string.IsNullOrWhiteSpace(probe.Details)
+                ? probe.Details
+                : "No additional details were reported.";
+        }
+
+        private static string BuildStepsText(MeasurementSourceRuntimeProbeResult probe)
+        {
+            if (probe == null || probe.Steps == null || probe.Steps.Count == 0)
             {
-                for (int i = 0; i < probe.Steps.Count; i++)
-                {
-                    stepsList.Items.Add(FormatStep(probe.Steps[i]));
-                }
-            }
-            else
-            {
-                stepsList.Items.Add("No detailed probe steps were reported.");
+                return "No probe steps were reported.";
             }
 
-            detailsText.Text = probe != null ? probe.Details : string.Empty;
+            List<string> lines = new List<string>(probe.Steps.Count);
+            for (int i = 0; i < probe.Steps.Count; i++)
+            {
+                lines.Add(FormatStep(probe.Steps[i]));
+            }
+
+            return string.Join(Environment.NewLine, lines);
         }
 
         private static string FormatStep(MeasurementSourceRuntimeProbeStep step)
         {
             if (step == null)
             {
-                return "[UNKNOWN] Step data is missing.";
+                return "- [UNKNOWN] Step data is missing.";
             }
 
             if (string.IsNullOrWhiteSpace(step.Details))
             {
-                return string.Format(CultureInfo.InvariantCulture, "[{0}] {1}", step.Status ?? "UNKNOWN", step.Name ?? "Step");
+                return string.Format(CultureInfo.InvariantCulture, "- [{0}] {1}", step.Status ?? "UNKNOWN", step.Name ?? "Step");
             }
 
             return string.Format(
                 CultureInfo.InvariantCulture,
-                "[{0}] {1} - {2}",
+                "- [{0}] {1}: {2}",
                 step.Status ?? "UNKNOWN",
                 step.Name ?? "Step",
                 step.Details);
-        }
-
-        private void ApplyStateBadgeStyle(MeasurementSessionState state)
-        {
-            switch (state)
-            {
-                case MeasurementSessionState.Initialized:
-                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusInfo");
-                    break;
-                case MeasurementSessionState.Measuring:
-                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusSuccess");
-                    break;
-                case MeasurementSessionState.Stationary:
-                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusWarning");
-                    break;
-                case MeasurementSessionState.Faulted:
-                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusDanger");
-                    break;
-                case MeasurementSessionState.Completed:
-                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusNeutral");
-                    break;
-                default:
-                    ApplyStatusVisual(StateBadgeBorder, StateBadgeText, "StatusNeutral");
-                    break;
-            }
-        }
-
-        private void ApplyStationaryBadgeStyle(bool isStationary)
-        {
-            if (isStationary)
-            {
-                StationaryBadgeText.Foreground = GetBrush("StatusWarningTextBrush");
-                return;
-            }
-
-            StationaryBadgeText.Foreground = GetBrush("MutedTextBrush");
-        }
-
-        private static string BuildTerminationText(SessionSummary summary)
-        {
-            if (summary == null)
-            {
-                return "-";
-            }
-
-            if (!string.IsNullOrWhiteSpace(summary.TerminationReasonCode))
-            {
-                switch (summary.TerminationReasonCode)
-                {
-                    case "manual-stop":
-                        return "Manual Stop";
-                    case "service-disposed":
-                        return "Service Disposed";
-                    case "critical-fault":
-                        return "Critical Fault";
-                    case "startup-failure":
-                        return "Startup Failure";
-                    case "desynchronization-threshold-fault":
-                        return "Desync Fault";
-                    case "desynchronization-threshold-graceful-stop":
-                        return "Desync Stop";
-                }
-
-                return summary.TerminationReasonCode;
-            }
-
-            return summary.CompletedNormally ? "Completed" : "Aborted";
-        }
-
-        private static string BuildTerminationTooltip(SessionSummary summary)
-        {
-            if (summary == null)
-            {
-                return string.Empty;
-            }
-
-            if (!string.IsNullOrWhiteSpace(summary.TerminationReason))
-            {
-                return summary.TerminationReason;
-            }
-
-            return string.IsNullOrWhiteSpace(summary.TerminationReasonCode)
-                ? string.Empty
-                : summary.TerminationReasonCode;
         }
 
         private sealed class PolicyOption

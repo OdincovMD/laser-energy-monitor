@@ -50,6 +50,21 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             get { return _session != null ? _session.CurrentWaveLength : string.Empty; }
         }
 
+        public string CurrentEnergyUnitBase
+        {
+            get { return _session != null ? _session.CurrentEnergyUnitBase : string.Empty; }
+        }
+
+        public string CurrentEnergyUnitQuantifier
+        {
+            get { return _session != null ? _session.CurrentEnergyUnitQuantifier : string.Empty; }
+        }
+
+        public double? CurrentScaleMultiplier
+        {
+            get { return _session != null ? _session.CurrentScaleMultiplier : null; }
+        }
+
         public string CurrentDataSourceStatus
         {
             get { return _session != null ? _session.DataSourceStatus : string.Empty; }
@@ -296,7 +311,11 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 DataSource = options.DataSource,
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
-                TimestampStrategy = options.TimestampStrategy
+                TimestampStrategy = options.TimestampStrategy,
+                ResetPowerEnergyCalibrationOnStart = options.ResetPowerEnergyCalibrationOnStart,
+                PowerEnergyCalibrationValue = options.PowerEnergyCalibrationValue,
+                PowerEnergyCalibrationUnitBase = options.PowerEnergyCalibrationUnitBase,
+                PowerEnergyCalibrationUnitQuantifier = options.PowerEnergyCalibrationUnitQuantifier
             };
         }
 

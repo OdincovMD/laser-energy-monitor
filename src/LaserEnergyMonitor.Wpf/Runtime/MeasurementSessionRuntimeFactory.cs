@@ -366,6 +366,8 @@ namespace LaserEnergyMonitor.Wpf
             builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.WaveLength) ? "auto-first-available" : _beamGageOptions.WaveLength);
             builder.Append("Configured timestamp strategy: ");
             builder.AppendLine(_beamGageOptions.TimestampStrategy.ToString());
+            builder.Append("Configured power/energy calibration: ");
+            builder.AppendLine(FormatBeamGageCalibration(_beamGageOptions));
             builder.AppendLine();
             builder.Append("Runtime probe summary: ");
             builder.AppendLine(probe.Summary);
@@ -385,6 +387,9 @@ namespace LaserEnergyMonitor.Wpf
             string resolvedWaveLength = string.Empty;
             string resolvedStatus = string.Empty;
             bool resolvedOnline = false;
+            string resolvedEnergyUnitBase = string.Empty;
+            string resolvedEnergyUnitQuantifier = string.Empty;
+            double? resolvedScaleMultiplier = null;
             string outcome;
             Exception executionException = null;
 
@@ -426,6 +431,9 @@ namespace LaserEnergyMonitor.Wpf
                         resolvedOnline = source.IsSourceOnline;
                         source.Start();
                         Thread.Sleep(_beamGageSmokeTestDuration);
+                        resolvedEnergyUnitBase = source.CurrentEnergyUnitBase;
+                        resolvedEnergyUnitQuantifier = source.CurrentEnergyUnitQuantifier;
+                        resolvedScaleMultiplier = source.CurrentScaleMultiplier;
                         source.Stop();
                     }
 
@@ -459,6 +467,10 @@ namespace LaserEnergyMonitor.Wpf
             builder.AppendLine(string.IsNullOrWhiteSpace(resolvedStatus) ? "n/a" : resolvedStatus);
             builder.Append("Resolved online flag: ");
             builder.AppendLine(resolvedStatus == string.Empty && !resolvedOnline ? "n/a" : (resolvedOnline ? "true" : "false"));
+            builder.Append("Resolved energy units: ");
+            builder.AppendLine(FormatBeamGageUnits(resolvedEnergyUnitBase, resolvedEnergyUnitQuantifier));
+            builder.Append("Resolved scale multiplier: ");
+            builder.AppendLine(resolvedScaleMultiplier.HasValue ? resolvedScaleMultiplier.Value.ToString("G17") : "n/a");
             builder.AppendLine();
             builder.Append("Outcome: ");
             builder.AppendLine(outcome);
@@ -746,6 +758,10 @@ namespace LaserEnergyMonitor.Wpf
             options.PowerMeter = ReadAppSetting("MeasurementSources.BeamGagePowerMeter");
             options.WaveLength = ReadAppSetting("MeasurementSources.BeamGageWaveLength");
             options.TimestampStrategy = ParseBeamGageTimestampStrategy(ReadAppSetting("MeasurementSources.BeamGageTimestampStrategy"));
+            options.ResetPowerEnergyCalibrationOnStart = ParseBool(ReadAppSetting("MeasurementSources.BeamGageResetPowerEnergyCalibrationOnStart"), false);
+            options.PowerEnergyCalibrationValue = ParseNullableDouble(ReadAppSetting("MeasurementSources.BeamGagePowerEnergyCalibrationValue"));
+            options.PowerEnergyCalibrationUnitBase = ReadAppSetting("MeasurementSources.BeamGagePowerEnergyCalibrationUnitBase");
+            options.PowerEnergyCalibrationUnitQuantifier = ReadAppSetting("MeasurementSources.BeamGagePowerEnergyCalibrationUnitQuantifier");
 
             if (string.IsNullOrWhiteSpace(options.AutomationInstanceId))
             {
@@ -764,7 +780,11 @@ namespace LaserEnergyMonitor.Wpf
                 DataSource = options.DataSource,
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
-                TimestampStrategy = options.TimestampStrategy
+                TimestampStrategy = options.TimestampStrategy,
+                ResetPowerEnergyCalibrationOnStart = options.ResetPowerEnergyCalibrationOnStart,
+                PowerEnergyCalibrationValue = options.PowerEnergyCalibrationValue,
+                PowerEnergyCalibrationUnitBase = options.PowerEnergyCalibrationUnitBase,
+                PowerEnergyCalibrationUnitQuantifier = options.PowerEnergyCalibrationUnitQuantifier
             };
         }
 
@@ -793,6 +813,14 @@ namespace LaserEnergyMonitor.Wpf
                 : fallback;
         }
 
+        private static double? ParseNullableDouble(string value)
+        {
+            double parsed;
+            return double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out parsed)
+                ? parsed
+                : (double?)null;
+        }
+
         private static OphirTimestampStrategy ParseTimestampStrategy(string value)
         {
             OphirTimestampStrategy parsed;
@@ -807,6 +835,51 @@ namespace LaserEnergyMonitor.Wpf
             return Enum.TryParse(value, true, out parsed)
                 ? parsed
                 : BeamGageTimestampStrategy.HostArrivalUtc;
+        }
+
+        private static string FormatBeamGageCalibration(BeamGageMeasurementOptions options)
+        {
+            if (options == null)
+            {
+                return "unchanged";
+            }
+
+            if (options.PowerEnergyCalibrationValue.HasValue)
+            {
+                StringBuilder builder = new StringBuilder();
+                builder.Append(options.PowerEnergyCalibrationValue.Value.ToString("G17"));
+                builder.Append(' ');
+                builder.Append(string.IsNullOrWhiteSpace(options.PowerEnergyCalibrationUnitQuantifier) ? string.Empty : options.PowerEnergyCalibrationUnitQuantifier + ' ');
+                builder.Append(string.IsNullOrWhiteSpace(options.PowerEnergyCalibrationUnitBase) ? "JOULES" : options.PowerEnergyCalibrationUnitBase);
+                if (options.ResetPowerEnergyCalibrationOnStart)
+                {
+                    builder.Append(" after reset");
+                }
+
+                return builder.ToString().Trim();
+            }
+
+            return options.ResetPowerEnergyCalibrationOnStart ? "reset only" : "unchanged";
+        }
+
+        private static string FormatBeamGageUnits(string unitBase, string unitQuantifier)
+        {
+            if (string.IsNullOrWhiteSpace(unitBase) && string.IsNullOrWhiteSpace(unitQuantifier))
+            {
+                return "n/a";
+            }
+
+            if (string.IsNullOrWhiteSpace(unitQuantifier))
+            {
+                return unitBase;
+            }
+
+            if (string.Equals(unitQuantifier, "NONE", StringComparison.OrdinalIgnoreCase))
+            {
+                return unitBase;
+            }
+
+            return unitQuantifier + " " + unitBase;
         }
     }
 
