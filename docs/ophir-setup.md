@@ -1,33 +1,33 @@
-# Ophir Setup Notes
+# Заметки по настройке Ophir
 
-The Ophir integration currently performs a prerequisite probe before any live acquisition starts.
+Интеграция Ophir перед началом любого живого захвата выполняет предварительную проверку.
 
-## Required machine state
+## Требуемое состояние машины
 
-- The Ophir vendor automation package must be installed locally.
-- The COM ProgID `OphirLMMeasurement.CoLMMeasurement` must be registered.
-- The installed vendor runtime must match the application's `x86` target.
+- На машине должен быть установлен automation package от вендора Ophir.
+- Должен быть зарегистрирован COM ProgID `OphirLMMeasurement.CoLMMeasurement`.
+- Установленный runtime от вендора должен соответствовать целевой архитектуре приложения `x86`.
 
-## What the current adapter does
+## Что делает текущий адаптер
 
-- `Initialize()` checks whether `OphirLMMeasurement.CoLMMeasurement` is registered.
-- If the ProgID is missing, the app raises a clear prerequisite error instead of a generic COM activation failure.
-- If the ProgID exists, the app can create the COM object, probe USB visibility, and run a short smoke-test against the real SDK source.
-- If the device is visible, the app can attempt short live acquisition and optionally capture raw samples into CSV for later replay.
+- `Initialize()` проверяет, зарегистрирован ли `OphirLMMeasurement.CoLMMeasurement`.
+- Если ProgID отсутствует, приложение выдает понятную ошибку о неподготовленном окружении вместо общей COM-ошибки активации.
+- Если ProgID присутствует, приложение может создать COM-объект, проверить видимость по USB и запустить короткий smoke-test против реального источника SDK.
+- Если устройство видно, приложение может попробовать короткий живой захват и при необходимости сохранить сырые выборки в CSV для последующего повторного воспроизведения.
 
-## App source selection
+## Выбор источника в приложении
 
-The WPF app reads per-source settings from `src/LaserEnergyMonitor.Wpf/App.config`.
+WPF-приложение читает настройки по каждому источнику из `src/LaserEnergyMonitor.Wpf/App.config`.
 
-The active source is selected in the UI:
+Активный источник выбирается в интерфейсе:
 
-- `Simulated Ophir` for offline workflow checks.
-- `Ophir SDK` for real Pulsar-4 diagnostics and live acquisition.
-- `Ophir Replay Capture` appears when `MeasurementSources.OphirReplayPath` points to an existing capture CSV.
+- `Simulated Ophir` для автономной проверки рабочих сценариев.
+- `Ophir SDK` для диагностики реального Pulsar-4 и живого захвата.
+- `Ophir Replay Capture` появляется, когда `MeasurementSources.OphirReplayPath` указывает на существующий CSV с захватом.
 
-`Ophir Smoke-Test` always forces the real `Ophir SDK` path, even if the UI is currently set to simulation, so it can validate the installed runtime and connected Pulsar-4 directly.
+`Ophir Smoke-Test` всегда принудительно использует реальный путь `Ophir SDK`, даже если в UI выбран режим симуляции, чтобы напрямую проверить установленный runtime и подключенный Pulsar-4.
 
-Relevant settings now include:
+Актуальные настройки:
 
 - `MeasurementSources.OphirSerialNumber`
 - `MeasurementSources.OphirPreferredChannel`
@@ -38,4 +38,4 @@ Relevant settings now include:
 - `MeasurementSources.OphirReplaySpeedMultiplier`
 - `MeasurementSources.OphirSmokeTestDurationMs`
 
-See [ophir-integration-checklist.md](C:/Users/hardb/laser-energy-monitor/docs/ophir-integration-checklist.md) before the first customer-side live test.
+Перед первой живой проверкой на целевой машине смотрите [ophir-integration-checklist.md](./ophir-integration-checklist.md).

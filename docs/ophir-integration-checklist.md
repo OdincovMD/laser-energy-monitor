@@ -1,65 +1,65 @@
-# Ophir Integration Checklist
+# Чеклист интеграции Ophir
 
-Use this checklist before the first live validation on the customer's machine.
+Используйте этот чеклист перед первой живой проверкой на целевой машине.
 
-## Before the session
+## Перед сессией
 
-- Confirm the exact Ophir device model and sensor head model.
-- Confirm the vendor software/runtime version installed on the machine.
-- Confirm the application is running as `x86`.
-- Confirm the customer can open the device in the vendor tool first, if that tool is part of their normal setup.
-- Confirm whether another process may already hold the device.
+- Уточните точную модель устройства Ophir и модель датчика.
+- Уточните версию программного обеспечения и runtime от вендора, установленного на машине.
+- Убедитесь, что приложение запущено как `x86`.
+- Убедитесь, что устройство можно открыть в фирменной утилите вендора, если она входит в обычный сценарий работы.
+- Уточните, не удерживает ли устройство уже какой-то другой процесс.
 
-## Machine preparation
+## Подготовка машины
 
-- Install the Ophir vendor automation package.
-- Verify the COM ProgID `OphirLMMeasurement.CoLMMeasurement` is registered.
-- Connect the device by USB and wait for Windows device initialization to finish.
-- Close any application that may keep the device open, unless shared access is explicitly supported.
+- Установите automation package от вендора Ophir.
+- Проверьте, что зарегистрирован COM ProgID `OphirLMMeasurement.CoLMMeasurement`.
+- Подключите устройство по USB и дождитесь завершения инициализации в Windows.
+- Закройте все приложения, которые могут держать устройство открытым, если общий доступ явно не поддерживается.
 
-## In the app
+## В приложении
 
-- Select `Ophir SDK` as the second source for normal diagnostics.
-- Run `Hardware Self-Test`.
-- Run `Ophir Smoke-Test`.
+- Выберите `Ophir SDK` как второй источник для обычной диагностики.
+- Запустите `Hardware Self-Test`.
+- Запустите `Ophir Smoke-Test`.
 
-## Expected outcomes
+## Ожидаемые результаты
 
-### Good outcome without device
+### Хороший результат без устройства
 
-- Runtime probe passes COM registration and COM activation.
-- USB scan reports zero devices.
-- Smoke-test says runtime is available but acquisition was skipped because no USB devices are visible.
+- Предварительная проверка проходит регистрацию COM и активацию COM.
+- USB-сканирование сообщает, что устройств нет.
+- Smoke-test сообщает, что runtime доступен, но захват был пропущен, потому что USB-устройства не видны.
 
-### Good outcome with device
+### Хороший результат с устройством
 
-- USB scan reports at least one device.
-- Device open passes.
-- Sensor detection passes.
-- Smoke-test reports that live samples were received.
-- If capture is enabled, a CSV file is created in the configured capture directory.
+- USB-сканирование находит хотя бы одно устройство.
+- Открытие устройства проходит успешно.
+- Обнаружение датчика проходит успешно.
+- Smoke-test сообщает, что были получены живые выборки.
+- Если захват включен, в настроенном каталоге создается CSV-файл.
 
-## Artifacts to collect from the customer
+## Что собрать
 
-- The full `Hardware Self-Test` report text.
-- The full `Ophir Smoke-Test` report text.
-- `application.log` from the app output directory.
-- Any generated `ophir-smoke-test-*.txt` report.
-- Any generated capture CSV from the `ophir-captures` directory.
-- A screenshot of the source selection and diagnostics panel, if the text report alone is ambiguous.
+- Полный текст отчета `Hardware Self-Test`.
+- Полный текст отчета `Ophir Smoke-Test`.
+- `application.log` из каталога вывода приложения.
+- Любой сгенерированный отчет `ophir-smoke-test-*.txt`.
+- Любой CSV захвата из каталога `ophir-captures`.
+- Скриншот выбора источника и панели диагностики, если одного текстового отчета недостаточно.
 
-## Questions to resolve during the live pass
+## Вопросы на время живой проверки
 
-- Does `ScanUSB` return the expected device count?
-- Which channel has the active sensor head?
-- Do timestamps from the SDK behave consistently enough to switch from host-arrival time to vendor time?
-- Do status codes remain zero during normal acquisition?
-- Are there sample gaps, duplicate samples, or delayed batches?
+- Возвращает ли `ScanUSB` ожидаемое количество устройств?
+- На каком канале находится активная головка датчика?
+- Достаточно ли согласованно ведут себя отметки времени из SDK, чтобы перейти от времени прихода на хост к времени от вендора?
+- Остаются ли коды состояния нулевыми при нормальном захвате?
+- Есть ли пропуски выборок, дубли или задержанные пачки?
 
-## If the smoke-test fails
+## Если smoke-test не проходит
 
-- Re-run `Hardware Self-Test` first.
-- Check whether the vendor tool can see the device.
-- Check whether the bitness of the installed runtime matches the app.
-- Check whether another process already opened the device.
-- Save the reports and logs before changing multiple things at once.
+- Сначала повторите `Hardware Self-Test`.
+- Проверьте, видит ли устройство фирменная утилита вендора.
+- Проверьте, совпадает ли разрядность установленного runtime с приложением.
+- Проверьте, не открыл ли устройство уже какой-то другой процесс.
+- Сохраните отчеты и логи, прежде чем менять сразу несколько вещей.

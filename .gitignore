@@ -6,6 +6,7 @@ Desktop.ini
 .vscode/
 
 # JetBrains / Visual Studio
+.vs/
 *.suo
 *.user
 *.userosscache
@@ -47,14 +48,14 @@ results/
 ui-test-artifacts/
 
 # Local helper folders
+.claude/
 .agents/
 .codex/
 delivery/LaserEnergyMonitor-*/
+AGENTS.md
+CLAUDE.md
 
 # Vendor archives and reference materials
-Beam Gage/
-Ophir Automation Examples/
-
 Beam Gage/
 Ophir Automation Examples/
 .gitnexus

@@ -8,8 +8,8 @@ laser-energy-monitor/
     README.md
   docs/
     architecture-and-stack.md
-    customer-delivery-readme.md
-    customer-ophir-first-run.md
+    release-bundle-notes.md
+    ophir-first-run-validation.md
     implementation-status.md
     ophir-integration-checklist.md
     ophir-setup.md
@@ -29,25 +29,26 @@ laser-energy-monitor/
   Directory.Build.props
   LaserEnergyMonitor.sln
   NuGet.Config
+  RELEASE_NOTES.md
   ui-tests.ps1
 ```
 
-## Проекты в solution
+## Проекты в решении
 
 ### `LaserEnergyMonitor.Wpf`
 
-Основное desktop-приложение.
+Основное настольное приложение.
 
 Содержит:
 
 - `App.xaml`
 - `MainWindow.xaml`
 - `Runtime/MeasurementSessionRuntimeFactory.cs`
-- wiring UI с application/domain/infrastructure слоями
+- связывание UI с application/domain/infrastructure-слоями
 
 ### `LaserEnergyMonitor.Application`
 
-Application-слой orchestration.
+Слой оркестрации приложения.
 
 Содержит:
 
@@ -73,7 +74,7 @@ Application-слой orchestration.
 Содержит:
 
 - `SystemClock`
-- simulated sources и measurement profiles
+- симулированные источники и профили измерений
 
 ### `LaserEnergyMonitor.Infrastructure.BeamGage`
 
@@ -81,10 +82,10 @@ Application-слой orchestration.
 
 Содержит:
 
-- runtime probe
-- session wrapper
-- measurement source
-- timestamp/options/prerequisite classes
+- предварительная проверка runtime
+- обертка сессии
+- источник измерений
+- классы отметок времени, параметров и предварительных условий
 
 ### `LaserEnergyMonitor.Infrastructure.Ophir`
 
@@ -131,10 +132,10 @@ Unit-тесты на доменную и application-логику.
 - `MeasurementSessionServiceTests`
 - `TestDoubles`
 
-## Вне solution, но важно
+## Вне решения, но важно
 
 - `docs/` содержит пользовательскую и техническую документацию;
-- `delivery/README.md` описывает структуру итоговой клиентской поставки;
+- `delivery/README.md` описывает структуру итогового комплекта поставки;
 - `ui-tests.ps1` хранит локальный сценарий UI-проверок.
 
 ## Что не должно считаться частью исходников
