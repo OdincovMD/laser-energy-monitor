@@ -38,14 +38,10 @@ msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
 - [Структура проекта](docs/project-structure.md)
 - [Архитектура и стек](docs/architecture-and-stack.md)
 - [Статус реализации](docs/implementation-status.md)
-- [Заметки к комплекту поставки](docs/release-bundle-notes.md)
+- [Комплект поставки](docs/release-bundle-notes.md)
 - [Первичная проверка Ophir](docs/ophir-first-run-validation.md)
 - [Как участвовать](CONTRIBUTING.md)
 - [Политика безопасности](SECURITY.md)
 - [Кодекс поведения](CODE_OF_CONDUCT.md)
 - [Чеклист релиза](RELEASE_CHECKLIST.md)
-- [Заметки к релизу](RELEASE_NOTES.md)
-
-## Примечания
-
-- Артефакты сборки, логи и временные папки уже должны быть исключены через `.gitignore`.
+- [Список изменений](RELEASE_NOTES.md)
