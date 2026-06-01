@@ -19,6 +19,7 @@ namespace LaserEnergyMonitor.Wpf
     {
         private const string BeamGageSdkSourceKey = "beam-sdk";
         private const string OphirSdkSourceKey = "ophir-sdk";
+        private const string OphirFastXSourceKey = "ophir-fastx";
         private readonly string _logPath;
         private readonly IOperatorNotifier _notifier;
         private readonly IClock _clock;
@@ -75,10 +76,16 @@ namespace LaserEnergyMonitor.Wpf
                     }),
                 new MeasurementSourceOption(
                     "ophir-sdk",
-                    "Ophir SDK",
+                    "Ophir LMMeasurement SDK",
                     true,
-                    () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions)),
-                    OphirRuntimeProbe.Probe)
+                    () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions, OphirRuntimeBackend.LmMeasurement)),
+                    OphirRuntimeProbe.Probe),
+                new MeasurementSourceOption(
+                    "ophir-fastx",
+                    "Ophir Pulsar ActiveX (legacy)",
+                    true,
+                    () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions, OphirRuntimeBackend.PulsarFastX)),
+                    OphirFastXRuntimeProbe.Probe)
             };
 
             if (!string.IsNullOrWhiteSpace(_ophirOptions.ReplayFilePath))
@@ -166,7 +173,7 @@ namespace LaserEnergyMonitor.Wpf
         public string RunOphirSmokeTest(string selectedSecondSourceKey)
         {
             MeasurementSourceOption selectedOption = GetSecondSourceOption(selectedSecondSourceKey);
-            MeasurementSourceOption ophirSdkOption = GetSecondSourceOption(OphirSdkSourceKey);
+            MeasurementSourceOption ophirSdkOption = GetOphirSmokeTestOption(selectedOption);
             MeasurementSourceRuntimeProbeResult probe = ophirSdkOption.ProbeRuntime();
             StringBuilder builder = new StringBuilder();
             builder.Append("Ophir smoke-test generated at ");
@@ -219,7 +226,11 @@ namespace LaserEnergyMonitor.Wpf
             bool noUsbDevicesDetected = string.Equals(
                 probe.Summary,
                 "Ophir COM runtime is functional. No USB devices are currently visible.",
-                StringComparison.OrdinalIgnoreCase);
+                StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    probe.Summary,
+                    "Ophir Pulsar ActiveX runtime is functional. No Pulsar USB devices are currently visible.",
+                    StringComparison.OrdinalIgnoreCase);
 
             if (sdkUnavailable)
             {
@@ -706,10 +717,24 @@ namespace LaserEnergyMonitor.Wpf
             return TimeSpan.FromMilliseconds(durationMs);
         }
 
-        private static OphirMeasurementOptions CloneOphirOptions(OphirMeasurementOptions options)
+        private MeasurementSourceOption GetOphirSmokeTestOption(MeasurementSourceOption selectedOption)
+        {
+            if (selectedOption != null &&
+                string.Equals(selectedOption.Key, OphirFastXSourceKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return GetSecondSourceOption(OphirFastXSourceKey);
+            }
+
+            return GetSecondSourceOption(OphirSdkSourceKey);
+        }
+
+        private static OphirMeasurementOptions CloneOphirOptions(
+            OphirMeasurementOptions options,
+            OphirRuntimeBackend? runtimeBackend = null)
         {
             return new OphirMeasurementOptions
             {
+                RuntimeBackend = runtimeBackend ?? options.RuntimeBackend,
                 DeviceSerialNumber = options.DeviceSerialNumber,
                 PreferredChannel = options.PreferredChannel,
                 PollInterval = options.PollInterval,

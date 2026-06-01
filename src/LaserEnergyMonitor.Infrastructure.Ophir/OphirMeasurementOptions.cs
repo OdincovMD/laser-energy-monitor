@@ -10,12 +10,15 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             {
                 return new OphirMeasurementOptions
                 {
+                    RuntimeBackend = OphirRuntimeBackend.LmMeasurement,
                     PollInterval = TimeSpan.FromMilliseconds(50),
                     PreferredChannel = null,
                     TimestampStrategy = OphirTimestampStrategy.HostArrivalUtc
                 };
             }
         }
+
+        public OphirRuntimeBackend RuntimeBackend { get; set; }
 
         public string DeviceSerialNumber { get; set; }
 

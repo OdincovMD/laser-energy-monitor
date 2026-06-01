@@ -80,6 +80,10 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 
                 if (deviceCount == 0)
                 {
+                    details.AppendLine();
+                    details.Append(
+                        "Compatibility hint: if a Pulsar device is visible in Ophir software but ScanUSB stays empty, " +
+                        "use the separate Ophir Pulsar ActiveX (legacy) source backed by OphirFastX.");
                     steps.Add(new MeasurementSourceRuntimeProbeStep
                     {
                         Name = "Device open",
@@ -97,6 +101,12 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                         Name = "Stream probe",
                         Status = "SKIPPED",
                         Details = "No opened device is available."
+                    });
+                    steps.Add(new MeasurementSourceRuntimeProbeStep
+                    {
+                        Name = "Legacy Pulsar API",
+                        Status = "INFO",
+                        Details = "Pulsar devices may require OphirFastX ActiveX instead of OphirLMMeasurement.ScanUSB."
                     });
 
                     return new MeasurementSourceRuntimeProbeResult

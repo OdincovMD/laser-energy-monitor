@@ -87,15 +87,15 @@ function Find-Element {
     param(
         [object[]]$Elements,
         [string]$Type,
-        [string]$Name
+        [string]$Identity
     )
 
     $match = $Elements | Where-Object {
-        $_.type -eq $Type -and $_.name -eq $Name
+        $_.type -eq $Type -and ($_.automationId -eq $Identity -or $_.name -eq $Identity)
     } | Select-Object -First 1
 
     if (-not $match) {
-        throw "Element not found: type='$Type', name='$Name'."
+        throw "Element not found: type='$Type', identity='$Identity'."
     }
 
     return $match
@@ -107,23 +107,7 @@ function Set-TextBoxValue {
         [string]$Text
     )
 
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName Microsoft.VisualBasic
-
-    Invoke-WinAppJson @('ui', 'focus', $Element.selector, '-a', $AppPid, '--json') | Out-Null
-    [Microsoft.VisualBasic.Interaction]::AppActivate($AppPid) | Out-Null
-    Start-Sleep -Milliseconds 200
-
-    $current = Invoke-WinAppJson @('ui', 'get-value', $Element.selector, '-a', $AppPid, '--json')
-    [System.Windows.Forms.SendKeys]::SendWait('{END}')
-    Start-Sleep -Milliseconds 50
-
-    for ($i = 0; $i -lt ($current.text.Length + 5); $i++) {
-        [System.Windows.Forms.SendKeys]::SendWait('{BACKSPACE}')
-        Start-Sleep -Milliseconds 20
-    }
-
-    [System.Windows.Forms.SendKeys]::SendWait($Text)
+    Invoke-WinAppJson @('ui', 'set-value', $Element.selector, $Text, '-a', $AppPid, '--json') | Out-Null
     Start-Sleep -Milliseconds 400
 }
 
@@ -158,18 +142,16 @@ if (-not $proc) {
 
 $elements = Get-UiElements
 
-$beamSource = Find-Element $elements 'ComboBox' 'BeamGage source selector'
-$ophirSource = Find-Element $elements 'ComboBox' 'Ophir source selector'
-$sessionName = Find-Element $elements 'Edit' 'Session name'
-$windowSize = Find-Element $elements 'Edit' 'Rolling window size'
-$desyncPolicy = Find-Element $elements 'ComboBox' 'Desynchronization policy'
-$outputPath = Find-Element $elements 'Edit' 'Output path'
-$overviewTab = Find-Element $elements 'TabItem' 'Overview'
-$reportTab = Find-Element $elements 'TabItem' 'Report'
-$initializeButton = Find-Element $elements 'Button' 'Initialize sources'
-$startButton = Find-Element $elements 'Button' 'Start measurement session'
-$stopButton = Find-Element $elements 'Button' 'Stop measurement session'
-$clearLogButton = Find-Element $elements 'Button' 'Clear event log'
+$beamSource = Find-Element $elements 'ComboBox' 'BeamSourceComboBox'
+$ophirSource = Find-Element $elements 'ComboBox' 'OphirSourceComboBox'
+$sessionName = Find-Element $elements 'Edit' 'SessionNameTextBox'
+$windowSize = Find-Element $elements 'Edit' 'WindowSizeTextBox'
+$desyncPolicy = Find-Element $elements 'ComboBox' 'PolicyComboBox'
+$outputPath = Find-Element $elements 'Edit' 'OutputPathTextBox'
+$initializeButton = Find-Element $elements 'Button' 'InitializeButton'
+$startButton = Find-Element $elements 'Button' 'StartButton'
+$stopButton = Find-Element $elements 'Button' 'StopButton'
+$clearLogButton = Find-Element $elements 'Button' 'ClearEventsButton'
 
 Invoke-WinAppJson @('ui', 'screenshot', '-a', $AppPid, '-o', $InitialShotPath, '--json') | Out-Null
 
@@ -181,7 +163,7 @@ Test-UI 'Main window is alive' {
 }
 
 Test-UI 'Header title is present' {
-    $header = Find-Element (Get-UiElements) 'Text' 'Laser Energy Monitor'
+    $header = Find-Element (Get-UiElements) 'Text' 'Run Setup'
     if (-not $header.selector) {
         throw 'Header title selector is missing.'
     }
@@ -204,12 +186,12 @@ Test-UI 'Session name default value is correct' {
 
 Test-UI 'Window N default value is correct' {
     $value = Invoke-WinAppJson @('ui', 'get-value', $windowSize.selector, '-a', $AppPid, '--json')
-    Assert-Equals $value.text '20,0' 'Unexpected Window N value.'
+    Assert-Equals $value.text '20' 'Unexpected Window N value.'
 }
 
 Test-UI 'Desynchronization policy default value is correct' {
     $value = Invoke-WinAppJson @('ui', 'get-value', $desyncPolicy.selector, '-a', $AppPid, '--json')
-    Assert-Equals $value.text 'Fault Session' 'Unexpected desynchronization policy.'
+    Assert-Equals $value.text 'Fault session' 'Unexpected desynchronization policy.'
 }
 
 Test-UI 'Output path points to workbook' {
@@ -227,10 +209,11 @@ Test-UI 'Primary action buttons are enabled' {
     Assert-Equals $stopState.properties.IsEnabled 'False' "Button '$($stopButton.name)' should be disabled in Idle state."
 }
 
-Test-UI 'Overview and Report tabs exist' {
-    foreach ($tab in @($overviewTab, $reportTab)) {
-        if (-not $tab.selector) {
-            throw "Tab '$($tab.name)' selector is missing."
+Test-UI 'Source diagnostic panels exist' {
+    foreach ($identity in @('BeamDiagnosticSummaryText', 'OphirDiagnosticSummaryText', 'DiagnosticsReportTextBox')) {
+        $panel = (Get-UiElements) | Where-Object { $_.automationId -eq $identity } | Select-Object -First 1
+        if (-not $panel) {
+            throw "Diagnostic element '$identity' is missing."
         }
     }
 }
@@ -250,14 +233,11 @@ Test-UI 'Session Name can be edited and restored' {
 Test-UI 'Events list area is visible in the automation tree' {
     $currentElements = Get-UiElements
     $eventList = $currentElements | Where-Object {
-        $_.automationId -eq 'EventsList' -or
-        $_.selector -eq 'EventsList' -or
-        $_.type -in @('List', 'ListItem') -or
-        $_.className -match 'LISTBOX'
+        $_.automationId -eq 'EventsTextBox'
     } | Select-Object -First 1
 
     if (-not $eventList) {
-        throw 'No visible List/ListItem/LISTBOX element was found for the Events section.'
+        throw 'EventsTextBox was not found for the Events section.'
     }
 }
 

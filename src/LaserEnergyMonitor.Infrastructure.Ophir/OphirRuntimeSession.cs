@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace LaserEnergyMonitor.Infrastructure.Ophir
 {
-    internal sealed class OphirRuntimeSession : IDisposable
+    internal sealed class OphirRuntimeSession : IOphirRuntimeSession
     {
         private const string ProgId = "OphirLMMeasurement.CoLMMeasurement";
         private readonly object _comObject;

@@ -17,5 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\LaserEnergyMonitor.Application\LaserEnergyMonitor.Application.csproj" />
     <ProjectReference Include="..\..\src\LaserEnergyMonitor.Domain\LaserEnergyMonitor.Domain.csproj" />
+    <ProjectReference Include="..\..\src\LaserEnergyMonitor.Infrastructure.Ophir\LaserEnergyMonitor.Infrastructure.Ophir.csproj" />
   </ItemGroup>
 </Project>

@@ -17,7 +17,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         private CancellationTokenSource _cts;
         private Task _pollingTask;
         private StaWorker _staWorker;
-        private OphirRuntimeSession _session;
+        private IOphirRuntimeSession _session;
         private OphirCaptureWriter _captureWriter;
         private string _lastCapturePath;
         private int _rawSampleCount;
@@ -126,7 +126,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     _session = _staWorker.Invoke(
                         delegate
                         {
-                            return OphirRuntimeSession.Open(_options);
+                            return OpenRuntimeSession();
                         });
                     CurrentSerialNumber = _session.SerialNumber;
                     CurrentChannel = _session.Channel;
@@ -242,7 +242,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             _disposed = true;
 
             StaWorker staWorker = null;
-            OphirRuntimeSession session = null;
+            IOphirRuntimeSession session = null;
             lock (_gate)
             {
                 staWorker = _staWorker;
@@ -318,6 +318,16 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     break;
                 }
             }
+        }
+
+        private IOphirRuntimeSession OpenRuntimeSession()
+        {
+            if (_options.RuntimeBackend == OphirRuntimeBackend.PulsarFastX)
+            {
+                return OphirFastXRuntimeSession.Open(_options);
+            }
+
+            return OphirRuntimeSession.Open(_options);
         }
 
         private void PublishSamples(OphirDataBatch batch)
