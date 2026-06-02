@@ -53,16 +53,18 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 Details = "ProgID detected: " + progId
             });
 
+            OphirFastXRuntimeHandle runtimeHandle = null;
             object comObject = null;
             bool usbOpened = false;
             try
             {
-                comObject = OphirFastXRuntimeSession.CreateRuntimeInstance();
+                runtimeHandle = OphirFastXRuntimeSession.CreateRuntimeInstance();
+                comObject = runtimeHandle.ComObject;
                 steps.Add(new MeasurementSourceRuntimeProbeStep
                 {
                     Name = "ActiveX activation",
                     Status = "PASS",
-                    Details = "COM type: " + runtimeType.FullName
+                    Details = "COM type: " + runtimeType.FullName + "; activation mode: " + runtimeHandle.ActivationMode
                 });
 
                 StringBuilder details = new StringBuilder();
@@ -70,6 +72,8 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 details.AppendLine(progId);
                 details.Append("COM type: ");
                 details.AppendLine(runtimeType.FullName);
+                details.Append("Activation mode: ");
+                details.AppendLine(runtimeHandle.ActivationMode);
                 details.AppendLine("API family: legacy OphirFastX ActiveX for Pulsar devices");
                 details.AppendLine("Required methods: OpenUSB, GetNumberOfDevices, GetDeviceHandle, IsChannelExists, StartCS2, GetData, StopCS, CloseUSB");
 
@@ -190,7 +194,10 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     OphirFastXRuntimeSession.TryInvoke(comObject, "CloseUSB");
                 }
 
-                OphirFastXRuntimeSession.ReleaseComObject(comObject);
+                if (runtimeHandle != null)
+                {
+                    runtimeHandle.Dispose();
+                }
             }
         }
 

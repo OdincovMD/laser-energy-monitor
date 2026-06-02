@@ -63,7 +63,9 @@
                                 <Setter Property="Padding" Value="10,0" />
                             </Style>
                         </Grid.Resources>
-                        <StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,4,0">
                             <TextBlock Text="Sources" Style="{StaticResource SetupFieldGroupTitle}" Margin="0,4,0,6" />
                             <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
 
@@ -72,6 +74,29 @@
                                       DisplayMemberPath="DisplayName"
                                       SelectedValuePath="Key"
                                       SelectionChanged="OnSourceSelectionChanged" />
+
+                            <TextBlock Text="Physical sensor" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,4" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="BeamPhysicalSourceComboBox"
+                                          SelectionChanged="OnBeamGagePhysicalSourceSelectionChanged" />
+                                <Button x:Name="RefreshBeamGageSourcesButton"
+                                        Grid.Column="2"
+                                        Content="Scan"
+                                        Style="{StaticResource SetupSecondaryButton}"
+                                        Click="OnRefreshBeamGageSourcesClicked" />
+                                <Button x:Name="ReconnectBeamGageButton"
+                                        Grid.Column="4"
+                                        Content="Connect"
+                                        Style="{StaticResource SetupSecondaryButton}"
+                                        Click="OnReconnectBeamGageClicked" />
+                            </Grid>
 
                             <TextBlock Text="Ophir / Pulsar-4" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,4" />
                             <ComboBox x:Name="OphirSourceComboBox"
@@ -171,6 +196,7 @@
                             <Button x:Name="StopButton" Grid.Column="2" Content="Stop" Style="{StaticResource SetupSecondaryButton}" Click="OnStopClicked" />
                         </Grid>
                         </StackPanel>
+                        </ScrollViewer>
                     </Grid>
                 </Grid>
             </Border>

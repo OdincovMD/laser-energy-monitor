@@ -1,3 +1,5 @@
+using System;
+
 namespace LaserEnergyMonitor.Infrastructure.BeamGage
 {
     public sealed class BeamGageMeasurementOptions
@@ -10,7 +12,10 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 {
                     AutomationInstanceId = "LaserEnergyMonitor",
                     ShowGui = false,
-                    TimestampStrategy = BeamGageTimestampStrategy.HostArrivalUtc
+                    TimestampStrategy = BeamGageTimestampStrategy.HostArrivalUtc,
+                    FrameTimeout = TimeSpan.FromSeconds(3),
+                    PollingFallbackEnabled = true,
+                    PollingFallbackInterval = TimeSpan.FromMilliseconds(20)
                 };
             }
         }
@@ -26,6 +31,12 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
         public string WaveLength { get; set; }
 
         public BeamGageTimestampStrategy TimestampStrategy { get; set; }
+
+        public TimeSpan FrameTimeout { get; set; }
+
+        public bool PollingFallbackEnabled { get; set; }
+
+        public TimeSpan PollingFallbackInterval { get; set; }
 
         public bool ResetPowerEnergyCalibrationOnStart { get; set; }
 

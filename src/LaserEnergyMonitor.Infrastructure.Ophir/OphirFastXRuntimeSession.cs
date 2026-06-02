@@ -18,6 +18,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             "OPHIRFASTXBeta.OphirFastXCtrl"
         };
 
+        private readonly OphirFastXRuntimeHandle _runtimeHandle;
         private readonly object _comObject;
         private readonly short _deviceHandle;
         private readonly short _channel;
@@ -25,9 +26,10 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         private bool _streaming;
         private bool _disposed;
 
-        private OphirFastXRuntimeSession(object comObject, short deviceHandle, short channel, string serialNumber)
+        private OphirFastXRuntimeSession(OphirFastXRuntimeHandle runtimeHandle, short deviceHandle, short channel, string serialNumber)
         {
-            _comObject = comObject;
+            _runtimeHandle = runtimeHandle;
+            _comObject = runtimeHandle.ComObject;
             _deviceHandle = deviceHandle;
             _channel = channel;
             _ownerThreadId = Thread.CurrentThread.ManagedThreadId;
@@ -45,7 +47,8 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         {
             EnsureStaThread();
             OphirMeasurementOptions effectiveOptions = options ?? OphirMeasurementOptions.Default;
-            object comObject = CreateRuntimeInstance();
+            OphirFastXRuntimeHandle runtimeHandle = CreateRuntimeInstance();
+            object comObject = runtimeHandle.ComObject;
             bool usbOpened = false;
 
             try
@@ -54,7 +57,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 usbOpened = true;
                 DeviceDescriptor device = ResolveDevice(comObject, effectiveOptions.DeviceSerialNumber);
                 short channel = ResolveChannel(comObject, device.Handle, effectiveOptions.PreferredChannel);
-                return new OphirFastXRuntimeSession(comObject, device.Handle, channel, device.SerialNumber);
+                return new OphirFastXRuntimeSession(runtimeHandle, device.Handle, channel, device.SerialNumber);
             }
             catch
             {
@@ -63,7 +66,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     TryInvoke(comObject, "CloseUSB");
                 }
 
-                ReleaseComObject(comObject);
+                runtimeHandle.Dispose();
                 throw;
             }
         }
@@ -122,7 +125,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             }
 
             TryInvoke(_comObject, "CloseUSB");
-            ReleaseComObject(_comObject);
+            _runtimeHandle.Dispose();
             _disposed = true;
         }
 
@@ -142,7 +145,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             return null;
         }
 
-        internal static object CreateRuntimeInstance()
+        internal static OphirFastXRuntimeHandle CreateRuntimeInstance()
         {
             string progId;
             Type runtimeType = FindRuntimeType(out progId);
@@ -154,15 +157,39 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                     "Expected ProgID: OPHIRFASTX.OphirFastXCtrl.1 or OPHIRFASTXBeta.OphirFastXCtrl.1.");
             }
 
+#if NETFRAMEWORK
+            Exception hostedActivationException = null;
             try
             {
-                return Activator.CreateInstance(runtimeType);
+                return OphirFastXActiveXHost.Create(runtimeType, progId);
+            }
+            catch (Exception ex)
+            {
+                hostedActivationException = ex;
+            }
+#endif
+
+            try
+            {
+                return OphirFastXRuntimeHandle.ForRawComObject(
+                    Activator.CreateInstance(runtimeType),
+#if NETFRAMEWORK
+                    "Raw COM fallback after hosted ActiveX activation failed: " + hostedActivationException.Message
+#else
+                    "Raw COM activation"
+#endif
+                    );
             }
             catch (COMException ex)
             {
                 throw new OphirPrerequisiteException(
                     "The OphirFastX ActiveX type was found, but activation failed." + Environment.NewLine +
-                    "Check that the x86 vendor ActiveX control and its USB driver are installed correctly.",
+                    "Check that the x86 vendor ActiveX control and its USB driver are installed correctly." +
+#if NETFRAMEWORK
+                    Environment.NewLine +
+                    "Hosted ActiveX activation error: " + hostedActivationException.Message +
+#endif
+                    string.Empty,
                     ex);
             }
         }
@@ -284,14 +311,6 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             }
             catch
             {
-            }
-        }
-
-        internal static void ReleaseComObject(object comObject)
-        {
-            if (comObject != null && Marshal.IsComObject(comObject))
-            {
-                Marshal.FinalReleaseComObject(comObject);
             }
         }
 
@@ -447,6 +466,53 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             public string SerialNumber { get; private set; }
 
             public string Name { get; private set; }
+        }
+    }
+
+    internal sealed class OphirFastXRuntimeHandle : IDisposable
+    {
+        private readonly IDisposable _lease;
+        private bool _disposed;
+
+        private OphirFastXRuntimeHandle(object comObject, string activationMode, IDisposable lease)
+        {
+            ComObject = comObject;
+            ActivationMode = activationMode;
+            _lease = lease;
+        }
+
+        public object ComObject { get; private set; }
+
+        public string ActivationMode { get; private set; }
+
+        public static OphirFastXRuntimeHandle ForRawComObject(object comObject, string activationMode)
+        {
+            return new OphirFastXRuntimeHandle(comObject, activationMode, null);
+        }
+
+        public static OphirFastXRuntimeHandle ForHostedActiveX(object comObject, string activationMode, IDisposable lease)
+        {
+            return new OphirFastXRuntimeHandle(comObject, activationMode, lease);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            if (_lease != null)
+            {
+                _lease.Dispose();
+                return;
+            }
+
+            if (ComObject != null && Marshal.IsComObject(ComObject))
+            {
+                Marshal.FinalReleaseComObject(ComObject);
+            }
         }
     }
 }

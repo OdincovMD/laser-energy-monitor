@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>LaserEnergyMonitor.BeamGageVendorProbe</AssemblyName>
+    <RootNamespace>LaserEnergyMonitor.BeamGageVendorProbe</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Spiricon.Automation">
+      <SpecificVersion>false</SpecificVersion>
+      <HintPath>C:\Program Files\Spiricon\BeamGage Professional\Spiricon.Automation.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Spiricon.BeamGage.Automation">
+      <SpecificVersion>false</SpecificVersion>
+      <HintPath>C:\Program Files\Spiricon\BeamGage Professional\Spiricon.BeamGage.Automation.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Spiricon.Interfaces.ConsoleService">
+      <SpecificVersion>false</SpecificVersion>
+      <HintPath>C:\Program Files\Spiricon\BeamGage Professional\Spiricon.Interfaces.ConsoleService.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Spiricon.TreePattern">
+      <SpecificVersion>false</SpecificVersion>
+      <HintPath>C:\Program Files\Spiricon\BeamGage Professional\Spiricon.TreePattern.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

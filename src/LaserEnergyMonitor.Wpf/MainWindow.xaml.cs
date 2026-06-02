@@ -55,6 +55,11 @@ namespace LaserEnergyMonitor.Wpf
                 OphirSourceComboBox.ItemsSource = _runtimeFactory.SecondSourceOptions;
                 SelectSource(BeamSourceComboBox, "beam-sim");
                 SelectSource(OphirSourceComboBox, "ophir-sim");
+                BindBeamGagePhysicalDataSources(
+                    string.IsNullOrWhiteSpace(_runtimeFactory.ConfiguredBeamGageDataSource)
+                        ? new string[0]
+                        : new[] { _runtimeFactory.ConfiguredBeamGageDataSource },
+                    _runtimeFactory.ConfiguredBeamGageDataSource);
 
                 PolicyComboBox.ItemsSource = new[]
                 {
@@ -171,6 +176,40 @@ namespace LaserEnergyMonitor.Wpf
                 });
         }
 
+        private void OnRefreshBeamGageSourcesClicked(object sender, RoutedEventArgs e)
+        {
+            RunUiAction(
+                "BeamGage sensor scan error",
+                delegate
+                {
+                    EnsureBeamGageSdkSelected();
+                    DisconnectServiceForBeamGageReconnection();
+                    IReadOnlyList<string> dataSources = _runtimeFactory.DiscoverBeamGagePhysicalDataSources();
+                    BindBeamGagePhysicalDataSources(dataSources, _runtimeFactory.ConfiguredBeamGageDataSource);
+                    AddEvent("BeamGage physical sensor scan completed.");
+                });
+        }
+
+        private void OnReconnectBeamGageClicked(object sender, RoutedEventArgs e)
+        {
+            RunUiAction(
+                "BeamGage reconnect error",
+                delegate
+                {
+                    EnsureBeamGageSdkSelected();
+                    string selectedDataSource = BeamPhysicalSourceComboBox.SelectedItem as string;
+                    if (string.IsNullOrWhiteSpace(selectedDataSource))
+                    {
+                        throw new InvalidOperationException("Select a physical BeamGage sensor before connecting.");
+                    }
+
+                    DisconnectServiceForBeamGageReconnection();
+                    _runtimeFactory.SelectBeamGagePhysicalDataSource(selectedDataSource);
+                    EnsureInitializedService(BuildSettings(), true);
+                    AddEvent("BeamGage sensor connected: " + selectedDataSource);
+                });
+        }
+
         private void OnBrowseClicked(object sender, RoutedEventArgs e)
         {
             SaveFileDialog dialog = new SaveFileDialog();
@@ -207,6 +246,17 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             RefreshSourceDiagnostics();
+            UpdateBeamGagePhysicalControls();
+        }
+
+        private void OnBeamGagePhysicalSourceSelectionChanged(object sender, EventArgs e)
+        {
+            if (_isBindingStartupData)
+            {
+                return;
+            }
+
+            UpdateBeamGagePhysicalControls();
         }
 
         private void RunUiAction(string title, Action action)
@@ -366,6 +416,74 @@ namespace LaserEnergyMonitor.Wpf
             return option != null ? option.Key : string.Empty;
         }
 
+        private void BindBeamGagePhysicalDataSources(IReadOnlyList<string> dataSources, string preferredDataSource)
+        {
+            BeamPhysicalSourceComboBox.ItemsSource = dataSources ?? new string[0];
+            BeamPhysicalSourceComboBox.SelectedIndex = -1;
+
+            for (int i = 0; i < BeamPhysicalSourceComboBox.Items.Count; i++)
+            {
+                string candidate = BeamPhysicalSourceComboBox.Items[i] as string;
+                if (string.Equals(candidate, preferredDataSource, StringComparison.OrdinalIgnoreCase))
+                {
+                    BeamPhysicalSourceComboBox.SelectedIndex = i;
+                    break;
+                }
+            }
+
+            if (BeamPhysicalSourceComboBox.SelectedIndex < 0 && BeamPhysicalSourceComboBox.Items.Count > 0)
+            {
+                BeamPhysicalSourceComboBox.SelectedIndex = 0;
+            }
+
+            UpdateBeamGagePhysicalControls();
+        }
+
+        private void EnsureBeamGageSdkSelected()
+        {
+            if (!IsBeamGageSdkSelected())
+            {
+                throw new InvalidOperationException("Select BeamGage SDK before scanning or connecting a physical BeamGage sensor.");
+            }
+        }
+
+        private bool IsBeamGageSdkSelected()
+        {
+            return string.Equals(GetSelectedSourceKey(BeamSourceComboBox), "beam-sdk", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void DisconnectServiceForBeamGageReconnection()
+        {
+            if (_service != null && IsSessionConfigurationLocked(_service.State))
+            {
+                throw new InvalidOperationException("Stop the active measurement session before changing the BeamGage sensor.");
+            }
+
+            ReplaceService(null);
+            _activeFirstSourceKey = null;
+            _activeSecondSourceKey = null;
+            UpdateState(MeasurementSessionState.Idle);
+        }
+
+        private void UpdateBeamGagePhysicalControls()
+        {
+            if (BeamPhysicalSourceComboBox == null ||
+                RefreshBeamGageSourcesButton == null ||
+                ReconnectBeamGageButton == null)
+            {
+                return;
+            }
+
+            bool locked = _service != null && IsSessionConfigurationLocked(_service.State);
+            bool sdkSelected = IsBeamGageSdkSelected();
+            BeamPhysicalSourceComboBox.IsEnabled = sdkSelected && !locked;
+            RefreshBeamGageSourcesButton.IsEnabled = sdkSelected && !locked;
+            ReconnectBeamGageButton.IsEnabled =
+                sdkSelected &&
+                !locked &&
+                BeamPhysicalSourceComboBox.SelectedItem is string;
+        }
+
         private void RefreshSourceDiagnostics()
         {
             if (BeamSourceComboBox == null || OphirSourceComboBox == null || DiagnosticsReportTextBox == null)
@@ -431,6 +549,7 @@ namespace LaserEnergyMonitor.Wpf
             PolicyComboBox.IsEnabled = !locked;
             OutputPathTextBox.IsReadOnly = locked;
             BrowseButton.IsEnabled = !locked;
+            UpdateBeamGagePhysicalControls();
             if (state == MeasurementSessionState.Idle || state == MeasurementSessionState.Initialized)
             {
                 ResetLiveValues();

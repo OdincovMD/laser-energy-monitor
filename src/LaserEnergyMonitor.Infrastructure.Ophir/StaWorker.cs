@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
+#if NETFRAMEWORK
+using System.Windows.Forms;
+#endif
 
 namespace LaserEnergyMonitor.Infrastructure.Ophir
 {
@@ -69,10 +72,23 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 
         private void Run()
         {
+#if NETFRAMEWORK
+            while (!_queue.IsCompleted)
+            {
+                IStaWorkItem workItem;
+                if (_queue.TryTake(out workItem, 50))
+                {
+                    workItem.Execute();
+                }
+
+                Application.DoEvents();
+            }
+#else
             foreach (IStaWorkItem workItem in _queue.GetConsumingEnumerable())
             {
                 workItem.Execute();
             }
+#endif
         }
 
         private void ThrowIfDisposed()

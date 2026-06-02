@@ -19,8 +19,17 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
         private readonly object _beamGage;
         private readonly object _frameEvents;
+        private readonly object _frameGate = new object();
         private Delegate _onNewFrameDelegate;
         private readonly BeamGageMeasurementOptions _options;
+        private long? _lastPublishedFrameId;
+        private long _onNewFrameCallbackCount;
+        private long _eventFrameCount;
+        private long _pollFrameAttemptCount;
+        private long _polledFrameCount;
+        private long _duplicateFrameSkipCount;
+        private long _lastObservedFrameId;
+        private string _lastFrameReadError;
         private bool _streaming;
         private bool _disposed;
 
@@ -57,12 +66,51 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
         internal double? CurrentScaleMultiplier { get; private set; }
 
+        internal long OnNewFrameCallbackCount
+        {
+            get { return Interlocked.Read(ref _onNewFrameCallbackCount); }
+        }
+
+        internal long EventFrameCount
+        {
+            get { return Interlocked.Read(ref _eventFrameCount); }
+        }
+
+        internal long PollFrameAttemptCount
+        {
+            get { return Interlocked.Read(ref _pollFrameAttemptCount); }
+        }
+
+        internal long PolledFrameCount
+        {
+            get { return Interlocked.Read(ref _polledFrameCount); }
+        }
+
+        internal long DuplicateFrameSkipCount
+        {
+            get { return Interlocked.Read(ref _duplicateFrameSkipCount); }
+        }
+
+        internal long LastObservedFrameId
+        {
+            get { return Interlocked.Read(ref _lastObservedFrameId); }
+        }
+
+        internal string LastFrameReadError
+        {
+            get { return _lastFrameReadError ?? string.Empty; }
+        }
+
         internal bool IsOnline
         {
             get
             {
                 object dataSource = GetPropertyValue(_beamGage, "DataSource");
-                return ToBoolean(GetPropertyValue(dataSource, "Online"));
+                return BeamGageDataSourceSelector.IsOnline(
+                    CurrentDataSource,
+                    Convert.ToString(GetPropertyValue(dataSource, "DataSource"), CultureInfo.InvariantCulture),
+                    ToStringArray(GetPropertyValue(dataSource, "DataSourceList")),
+                    Convert.ToString(GetPropertyValue(dataSource, "Status"), CultureInfo.InvariantCulture));
             }
         }
 
@@ -74,6 +122,21 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 object status = GetPropertyValue(dataSource, "Status");
                 return status != null ? status.ToString() : string.Empty;
             }
+        }
+
+        internal string[] GetAvailablePhysicalDataSources()
+        {
+            ThrowIfDisposed();
+            object dataSource = GetPropertyValue(_beamGage, "DataSource");
+            return BeamGageDataSourceSelector.GetPhysicalDataSources(
+                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")));
+        }
+
+        internal string[] GetAvailableDataSources()
+        {
+            ThrowIfDisposed();
+            object dataSource = GetPropertyValue(_beamGage, "DataSource");
+            return ToStringArray(GetPropertyValue(dataSource, "DataSourceList"));
         }
 
         internal static BeamGageRuntimeSession Open(BeamGageMeasurementOptions options)
@@ -89,7 +152,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
             try
             {
-                ConfigureDataSource(beamGage, effectiveOptions);
+                string currentDataSource = ConfigureDataSource(beamGage, effectiveOptions);
                 ConfigurePowerMeter(beamGage, effectiveOptions);
                 ConfigurePowerEnergy(beamGage, effectiveOptions);
 
@@ -102,7 +165,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                     frameEvents,
                     null,
                     CloneOptions(effectiveOptions),
-                    Convert.ToString(GetPropertyValue(GetPropertyValue(beamGage, "DataSource"), "DataSource"), CultureInfo.InvariantCulture),
+                    currentDataSource,
                     Convert.ToString(GetPropertyValue(GetPropertyValue(beamGage, "PowerMeter"), "PowerMeter"), CultureInfo.InvariantCulture),
                     Convert.ToString(GetPropertyValue(GetPropertyValue(beamGage, "PowerMeter"), "WaveLength"), CultureInfo.InvariantCulture));
                 session.RefreshFrameMetadata();
@@ -133,6 +196,18 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
             object dataSource = GetPropertyValue(_beamGage, "DataSource");
             InvokeMethod(dataSource, "Start");
+            lock (_frameGate)
+            {
+                _lastPublishedFrameId = null;
+            }
+
+            Interlocked.Exchange(ref _onNewFrameCallbackCount, 0L);
+            Interlocked.Exchange(ref _eventFrameCount, 0L);
+            Interlocked.Exchange(ref _pollFrameAttemptCount, 0L);
+            Interlocked.Exchange(ref _polledFrameCount, 0L);
+            Interlocked.Exchange(ref _duplicateFrameSkipCount, 0L);
+            Interlocked.Exchange(ref _lastObservedFrameId, 0L);
+            _lastFrameReadError = string.Empty;
             _streaming = true;
         }
 
@@ -187,6 +262,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 return;
             }
 
+            Interlocked.Increment(ref _onNewFrameCallbackCount);
             try
             {
                 BeamGageFrameSnapshot snapshot = ReadSnapshot();
@@ -195,15 +271,43 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                     return;
                 }
 
+                Interlocked.Increment(ref _eventFrameCount);
                 FrameAvailable?.Invoke(this, new BeamGageFrameAvailableEventArgs(snapshot));
             }
             catch (Exception ex)
             {
+                _lastFrameReadError = ex.Message;
                 Faulted?.Invoke(
                     this,
                     new BeamGageFaultEventArgs(
                         "BeamGage frame processing failed: " + ex.Message,
                         ex));
+            }
+        }
+
+        internal BeamGageFrameSnapshot TryPollFrame()
+        {
+            ThrowIfDisposed();
+            if (!_streaming)
+            {
+                return null;
+            }
+
+            Interlocked.Increment(ref _pollFrameAttemptCount);
+            try
+            {
+                BeamGageFrameSnapshot snapshot = ReadSnapshot();
+                if (snapshot != null)
+                {
+                    Interlocked.Increment(ref _polledFrameCount);
+                }
+
+                return snapshot;
+            }
+            catch (Exception ex)
+            {
+                _lastFrameReadError = ex.Message;
+                return null;
             }
         }
 
@@ -213,10 +317,23 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             object resultsPriorityFrame = GetPropertyValue(_beamGage, "ResultsPriorityFrame");
             object frameInfoResults = GetPropertyValue(_beamGage, "FrameInfoResults");
             object powerEnergyResults = GetPropertyValue(_beamGage, "PowerEnergyResults");
+            EnsureActivePhysicalDataSource();
 
             long frameId = Convert.ToInt64(
                 ToDouble(GetPropertyValue(frameInfoResults, "ID")),
                 CultureInfo.InvariantCulture);
+            Interlocked.Exchange(ref _lastObservedFrameId, frameId);
+            lock (_frameGate)
+            {
+                if (!BeamGageDataSourceSelector.ShouldPublishFrame(frameId, _lastPublishedFrameId))
+                {
+                    Interlocked.Increment(ref _duplicateFrameSkipCount);
+                    return null;
+                }
+
+                _lastPublishedFrameId = frameId;
+            }
+
             double totalEnergy = ToDouble(GetPropertyValue(powerEnergyResults, "Total"));
             double timestampOaDate = ToDouble(GetPropertyValue(frameInfoResults, "Timestamp"));
             CurrentEnergyUnitBase = Convert.ToString(GetPropertyValue(resultsPriorityFrame, "EnergyUnitsBase"), CultureInfo.InvariantCulture);
@@ -253,29 +370,19 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             }
         }
 
-        private static void ConfigureDataSource(object beamGage, BeamGageMeasurementOptions options)
+        private static string ConfigureDataSource(object beamGage, BeamGageMeasurementOptions options)
         {
             object dataSource = GetPropertyValue(beamGage, "DataSource");
             string[] dataSourceList = ToStringArray(GetPropertyValue(dataSource, "DataSourceList"));
-            if (dataSourceList.Length == 0)
-            {
-                throw new InvalidOperationException(
-                    "BeamGage automation server started, but no data sources were detected." + Environment.NewLine +
-                    "Open BeamGage Professional and confirm that the expected camera/source is visible.");
-            }
-
-            string selectedDataSource = ResolvePreferredItem(dataSourceList, options.DataSource);
-            if (!string.IsNullOrWhiteSpace(selectedDataSource))
-            {
-                SetPropertyValue(dataSource, "DataSource", selectedDataSource);
-            }
+            string selectedDataSource = BeamGageDataSourceSelector.ResolvePhysicalDataSource(dataSourceList, options.DataSource);
+            SetPropertyValue(dataSource, "DataSource", selectedDataSource);
 
             string currentDataSource = Convert.ToString(GetPropertyValue(dataSource, "DataSource"), CultureInfo.InvariantCulture);
-            if (string.IsNullOrWhiteSpace(currentDataSource))
-            {
-                throw new InvalidOperationException(
-                    "BeamGage did not report an active data source after initialization.");
-            }
+            BeamGageDataSourceSelector.EnsureActivePhysicalDataSource(
+                selectedDataSource,
+                currentDataSource,
+                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")));
+            return currentDataSource;
         }
 
         private static void ConfigurePowerMeter(object beamGage, BeamGageMeasurementOptions options)
@@ -584,6 +691,9 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
                 TimestampStrategy = options.TimestampStrategy,
+                FrameTimeout = options.FrameTimeout,
+                PollingFallbackEnabled = options.PollingFallbackEnabled,
+                PollingFallbackInterval = options.PollingFallbackInterval,
                 ResetPowerEnergyCalibrationOnStart = options.ResetPowerEnergyCalibrationOnStart,
                 PowerEnergyCalibrationValue = options.PowerEnergyCalibrationValue,
                 PowerEnergyCalibrationUnitBase = options.PowerEnergyCalibrationUnitBase,
@@ -607,6 +717,15 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 CurrentEnergyUnitQuantifier = string.Empty;
                 CurrentScaleMultiplier = null;
             }
+        }
+
+        private void EnsureActivePhysicalDataSource()
+        {
+            object dataSource = GetPropertyValue(_beamGage, "DataSource");
+            BeamGageDataSourceSelector.EnsureActivePhysicalDataSource(
+                CurrentDataSource,
+                Convert.ToString(GetPropertyValue(dataSource, "DataSource"), CultureInfo.InvariantCulture),
+                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")));
         }
 
         private static void ShutdownBeamGage(object beamGage)
@@ -694,11 +813,6 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             }
 
             return result;
-        }
-
-        private static bool ToBoolean(object value)
-        {
-            return Convert.ToBoolean(value, CultureInfo.InvariantCulture);
         }
 
         private static double ToDouble(object value)

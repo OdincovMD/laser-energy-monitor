@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LaserEnergyMonitor.Domain;
@@ -14,7 +16,10 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
         private BlockingCollection<BeamGageFrameSnapshot> _queue;
         private CancellationTokenSource _cts;
         private Task _publisherTask;
+        private Task _pollerTask;
+        private long _lastFrameReceivedUtcTicks;
         private long _sequence;
+        private int _streamingFaultReported;
         private bool _streaming;
         private bool _disposed;
 
@@ -75,6 +80,67 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             get { return _session != null && _session.IsOnline; }
         }
 
+        public IReadOnlyList<string> AvailablePhysicalDataSources
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _session != null
+                        ? _session.GetAvailablePhysicalDataSources()
+                        : new string[0];
+                }
+            }
+        }
+
+        public IReadOnlyList<string> AvailableDataSources
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _session != null
+                        ? _session.GetAvailableDataSources()
+                        : new string[0];
+                }
+            }
+        }
+
+        public long OnNewFrameCallbackCount
+        {
+            get { return _session != null ? _session.OnNewFrameCallbackCount : 0L; }
+        }
+
+        public long EventFrameCount
+        {
+            get { return _session != null ? _session.EventFrameCount : 0L; }
+        }
+
+        public long PollFrameAttemptCount
+        {
+            get { return _session != null ? _session.PollFrameAttemptCount : 0L; }
+        }
+
+        public long PolledFrameCount
+        {
+            get { return _session != null ? _session.PolledFrameCount : 0L; }
+        }
+
+        public long DuplicateFrameSkipCount
+        {
+            get { return _session != null ? _session.DuplicateFrameSkipCount : 0L; }
+        }
+
+        public long LastObservedFrameId
+        {
+            get { return _session != null ? _session.LastObservedFrameId : 0L; }
+        }
+
+        public string LastFrameReadError
+        {
+            get { return _session != null ? _session.LastFrameReadError : string.Empty; }
+        }
+
         public event EventHandler<MeasurementReceivedEventArgs> MeasurementReceived;
         public event EventHandler<DeviceFaultEventArgs> Faulted;
 
@@ -112,6 +178,8 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
                 _queue = new BlockingCollection<BeamGageFrameSnapshot>(new ConcurrentQueue<BeamGageFrameSnapshot>());
                 _cts = new CancellationTokenSource();
+                Interlocked.Exchange(ref _lastFrameReceivedUtcTicks, DateTime.UtcNow.Ticks);
+                Interlocked.Exchange(ref _streamingFaultReported, 0);
                 _streaming = true;
                 _publisherTask = Task.Factory.StartNew(
                     () => PublishMeasurements(_queue, _cts.Token),
@@ -122,6 +190,14 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 try
                 {
                     _session.StartStream();
+                    if (_options.PollingFallbackEnabled)
+                    {
+                        _pollerTask = Task.Factory.StartNew(
+                            () => PollMeasurements(_queue, _cts.Token),
+                            _cts.Token,
+                            TaskCreationOptions.LongRunning,
+                            TaskScheduler.Default);
+                    }
                 }
                 catch
                 {
@@ -138,6 +214,8 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             BlockingCollection<BeamGageFrameSnapshot> queue = null;
             CancellationTokenSource cts = null;
             Task publisherTask = null;
+            Task pollerTask = null;
+            bool canWaitForTask = true;
 
             lock (_gate)
             {
@@ -150,48 +228,86 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 queue = _queue;
                 cts = _cts;
                 publisherTask = _publisherTask;
+                pollerTask = _pollerTask;
                 _queue = null;
                 _cts = null;
                 _publisherTask = null;
+                _pollerTask = null;
+                canWaitForTask = publisherTask == null ||
+                    !Task.CurrentId.HasValue ||
+                    publisherTask.Id != Task.CurrentId.Value;
+                canWaitForTask = canWaitForTask &&
+                    (pollerTask == null ||
+                    !Task.CurrentId.HasValue ||
+                    pollerTask.Id != Task.CurrentId.Value);
             }
 
-            if (_session != null)
+            Exception stopException = null;
+            try
             {
-                _session.StopStream();
-            }
-
-            if (cts != null)
-            {
-                cts.Cancel();
-            }
-
-            if (queue != null)
-            {
-                queue.CompleteAdding();
-            }
-
-            if (publisherTask != null)
-            {
-                try
+                if (_session != null)
                 {
-                    publisherTask.Wait(TimeSpan.FromSeconds(2));
-                }
-                catch (AggregateException)
-                {
-                }
-                catch (InvalidOperationException)
-                {
+                    _session.StopStream();
                 }
             }
-
-            if (queue != null)
+            catch (Exception ex)
             {
-                queue.Dispose();
+                stopException = ex;
+            }
+            finally
+            {
+                if (cts != null)
+                {
+                    cts.Cancel();
+                }
+
+                if (queue != null)
+                {
+                    queue.CompleteAdding();
+                }
+
+                if (pollerTask != null && canWaitForTask)
+                {
+                    try
+                    {
+                        pollerTask.Wait(TimeSpan.FromSeconds(2));
+                    }
+                    catch (AggregateException)
+                    {
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                }
+
+                if (publisherTask != null && canWaitForTask)
+                {
+                    try
+                    {
+                        publisherTask.Wait(TimeSpan.FromSeconds(2));
+                    }
+                    catch (AggregateException)
+                    {
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                }
+
+                if (queue != null)
+                {
+                    queue.Dispose();
+                }
+
+                if (cts != null)
+                {
+                    cts.Dispose();
+                }
             }
 
-            if (cts != null)
+            if (stopException != null)
             {
-                cts.Dispose();
+                ExceptionDispatchInfo.Capture(stopException).Throw();
             }
         }
 
@@ -221,15 +337,29 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
         private void OnFrameAvailable(object sender, BeamGageFrameAvailableEventArgs e)
         {
+            if (e == null)
+            {
+                return;
+            }
+
+            QueueSnapshot(e.Snapshot);
+        }
+
+        private void QueueSnapshot(BeamGageFrameSnapshot snapshot)
+        {
             BlockingCollection<BeamGageFrameSnapshot> queue = _queue;
-            if (!_streaming || queue == null || e == null || e.Snapshot == null)
+            if (!_streaming || queue == null || snapshot == null)
             {
                 return;
             }
 
             try
             {
-                queue.Add(e.Snapshot);
+                Interlocked.Exchange(ref _lastFrameReceivedUtcTicks, snapshot.RecordedUtc.Ticks);
+                queue.Add(snapshot);
+            }
+            catch (ObjectDisposedException)
+            {
             }
             catch (InvalidOperationException)
             {
@@ -243,15 +373,78 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 return;
             }
 
-            RaiseFault(e.Message, e.Exception);
+            ReportStreamingFault(e.Message, e.Exception);
+        }
+
+        private void PollMeasurements(BlockingCollection<BeamGageFrameSnapshot> queue, CancellationToken token)
+        {
+            try
+            {
+                TimeSpan interval = GetEffectivePollingFallbackInterval();
+                while (!token.IsCancellationRequested && !queue.IsCompleted)
+                {
+                    BeamGageRuntimeSession session = _session;
+                    if (session == null)
+                    {
+                        break;
+                    }
+
+                    BeamGageFrameSnapshot snapshot = session.TryPollFrame();
+                    if (snapshot != null)
+                    {
+                        QueueSnapshot(snapshot);
+                    }
+
+                    if (token.WaitHandle.WaitOne(interval))
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (Exception ex)
+            {
+                ReportStreamingFault("BeamGage polling fallback failed: " + ex.Message, ex);
+            }
         }
 
         private void PublishMeasurements(BlockingCollection<BeamGageFrameSnapshot> queue, CancellationToken token)
         {
             try
             {
-                foreach (BeamGageFrameSnapshot snapshot in queue.GetConsumingEnumerable(token))
+                TimeSpan frameTimeout = GetEffectiveFrameTimeout();
+                TimeSpan watchdogInterval = GetWatchdogInterval(frameTimeout);
+                while (!token.IsCancellationRequested)
                 {
+                    BeamGageFrameSnapshot snapshot;
+                    if (!queue.TryTake(out snapshot, (int)watchdogInterval.TotalMilliseconds, token))
+                    {
+                        if (queue.IsCompleted)
+                        {
+                            break;
+                        }
+
+                        DateTime lastFrameReceivedUtc = new DateTime(
+                            Interlocked.Read(ref _lastFrameReceivedUtcTicks),
+                            DateTimeKind.Utc);
+                        if (DateTime.UtcNow - lastFrameReceivedUtc >= frameTimeout)
+                        {
+                            ReportStreamingFault(
+                                "BeamGage physical data source stopped delivering new frames for " +
+                                frameTimeout.TotalSeconds.ToString("0.###") +
+                                " seconds: " + CurrentDataSource,
+                                null);
+                            break;
+                        }
+
+                        continue;
+                    }
+
                     MeasurementReceived?.Invoke(
                         this,
                         new MeasurementReceivedEventArgs(
@@ -268,9 +461,12 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             catch (OperationCanceledException)
             {
             }
+            catch (ObjectDisposedException)
+            {
+            }
             catch (Exception ex)
             {
-                RaiseFault("BeamGage publishing failed: " + ex.Message, ex);
+                ReportStreamingFault("BeamGage publishing failed: " + ex.Message, ex);
             }
         }
 
@@ -287,8 +483,14 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             }
         }
 
-        private void RaiseFault(string message, Exception exception)
+        private void ReportStreamingFault(string message, Exception exception)
         {
+            if (Interlocked.CompareExchange(ref _streamingFaultReported, 1, 0) != 0)
+            {
+                return;
+            }
+
+            IsConnected = false;
             Faulted?.Invoke(
                 this,
                 new DeviceFaultEventArgs(
@@ -312,11 +514,38 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
                 TimestampStrategy = options.TimestampStrategy,
+                FrameTimeout = options.FrameTimeout,
+                PollingFallbackEnabled = options.PollingFallbackEnabled,
+                PollingFallbackInterval = options.PollingFallbackInterval,
                 ResetPowerEnergyCalibrationOnStart = options.ResetPowerEnergyCalibrationOnStart,
                 PowerEnergyCalibrationValue = options.PowerEnergyCalibrationValue,
                 PowerEnergyCalibrationUnitBase = options.PowerEnergyCalibrationUnitBase,
                 PowerEnergyCalibrationUnitQuantifier = options.PowerEnergyCalibrationUnitQuantifier
             };
+        }
+
+        private TimeSpan GetEffectiveFrameTimeout()
+        {
+            return _options.FrameTimeout > TimeSpan.Zero
+                ? _options.FrameTimeout
+                : BeamGageMeasurementOptions.Default.FrameTimeout;
+        }
+
+        private static TimeSpan GetWatchdogInterval(TimeSpan frameTimeout)
+        {
+            double intervalMs = frameTimeout.TotalMilliseconds / 4d;
+            intervalMs = Math.Max(100d, Math.Min(1000d, intervalMs));
+            return TimeSpan.FromMilliseconds(intervalMs);
+        }
+
+        private TimeSpan GetEffectivePollingFallbackInterval()
+        {
+            if (_options.PollingFallbackInterval > TimeSpan.Zero)
+            {
+                return _options.PollingFallbackInterval;
+            }
+
+            return BeamGageMeasurementOptions.Default.PollingFallbackInterval;
         }
 
         private void ThrowIfDisposed()

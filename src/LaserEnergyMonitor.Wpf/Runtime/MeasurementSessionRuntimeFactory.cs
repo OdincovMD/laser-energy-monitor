@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -111,6 +112,33 @@ namespace LaserEnergyMonitor.Wpf
         public IReadOnlyList<MeasurementSourceOption> SecondSourceOptions
         {
             get { return _secondSourceOptions; }
+        }
+
+        public string ConfiguredBeamGageDataSource
+        {
+            get { return _beamGageOptions.DataSource; }
+        }
+
+        public IReadOnlyList<string> DiscoverBeamGagePhysicalDataSources()
+        {
+            BeamGageMeasurementOptions discoveryOptions = CloneBeamGageOptions(_beamGageOptions);
+            discoveryOptions.DataSource = null;
+
+            using (BeamGageMeasurementSource source = new BeamGageMeasurementSource(discoveryOptions))
+            {
+                source.Initialize();
+                return source.AvailablePhysicalDataSources.ToArray();
+            }
+        }
+
+        public void SelectBeamGagePhysicalDataSource(string dataSource)
+        {
+            if (string.IsNullOrWhiteSpace(dataSource))
+            {
+                throw new InvalidOperationException("Select a physical BeamGage data source before connecting.");
+            }
+
+            _beamGageOptions.DataSource = dataSource;
         }
 
         public MeasurementSessionService Create(string firstSourceKey, string secondSourceKey)
@@ -370,13 +398,19 @@ namespace LaserEnergyMonitor.Wpf
             builder.Append("Configured show GUI: ");
             builder.AppendLine(_beamGageOptions.ShowGui ? "true" : "false");
             builder.Append("Configured data source: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.DataSource) ? "auto-first-available" : _beamGageOptions.DataSource);
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.DataSource) ? "auto-first-physical" : _beamGageOptions.DataSource);
             builder.Append("Configured power meter: ");
             builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.PowerMeter) ? "auto-first-available" : _beamGageOptions.PowerMeter);
             builder.Append("Configured wavelength: ");
             builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.WaveLength) ? "auto-first-available" : _beamGageOptions.WaveLength);
             builder.Append("Configured timestamp strategy: ");
             builder.AppendLine(_beamGageOptions.TimestampStrategy.ToString());
+            builder.Append("Configured frame timeout: ");
+            builder.AppendLine(_beamGageOptions.FrameTimeout.ToString());
+            builder.Append("Configured polling fallback: ");
+            builder.AppendLine(_beamGageOptions.PollingFallbackEnabled ? "enabled" : "disabled");
+            builder.Append("Configured polling interval: ");
+            builder.AppendLine(_beamGageOptions.PollingFallbackInterval.ToString());
             builder.Append("Configured power/energy calibration: ");
             builder.AppendLine(FormatBeamGageCalibration(_beamGageOptions));
             builder.AppendLine();
@@ -398,9 +432,18 @@ namespace LaserEnergyMonitor.Wpf
             string resolvedWaveLength = string.Empty;
             string resolvedStatus = string.Empty;
             bool resolvedOnline = false;
+            string[] resolvedAllDataSources = new string[0];
+            string[] resolvedPhysicalDataSources = new string[0];
             string resolvedEnergyUnitBase = string.Empty;
             string resolvedEnergyUnitQuantifier = string.Empty;
             double? resolvedScaleMultiplier = null;
+            long onNewFrameCallbackCount = 0L;
+            long eventFrameCount = 0L;
+            long pollFrameAttemptCount = 0L;
+            long polledFrameCount = 0L;
+            long duplicateFrameSkipCount = 0L;
+            long lastObservedFrameId = 0L;
+            string lastFrameReadError = string.Empty;
             string outcome;
             Exception executionException = null;
 
@@ -440,11 +483,20 @@ namespace LaserEnergyMonitor.Wpf
                         resolvedWaveLength = source.CurrentWaveLength;
                         resolvedStatus = source.CurrentDataSourceStatus;
                         resolvedOnline = source.IsSourceOnline;
+                        resolvedAllDataSources = source.AvailableDataSources.ToArray();
+                        resolvedPhysicalDataSources = source.AvailablePhysicalDataSources.ToArray();
                         source.Start();
                         Thread.Sleep(_beamGageSmokeTestDuration);
                         resolvedEnergyUnitBase = source.CurrentEnergyUnitBase;
                         resolvedEnergyUnitQuantifier = source.CurrentEnergyUnitQuantifier;
                         resolvedScaleMultiplier = source.CurrentScaleMultiplier;
+                        onNewFrameCallbackCount = source.OnNewFrameCallbackCount;
+                        eventFrameCount = source.EventFrameCount;
+                        pollFrameAttemptCount = source.PollFrameAttemptCount;
+                        polledFrameCount = source.PolledFrameCount;
+                        duplicateFrameSkipCount = source.DuplicateFrameSkipCount;
+                        lastObservedFrameId = source.LastObservedFrameId;
+                        lastFrameReadError = source.LastFrameReadError;
                         source.Stop();
                     }
 
@@ -478,10 +530,28 @@ namespace LaserEnergyMonitor.Wpf
             builder.AppendLine(string.IsNullOrWhiteSpace(resolvedStatus) ? "n/a" : resolvedStatus);
             builder.Append("Resolved online flag: ");
             builder.AppendLine(resolvedStatus == string.Empty && !resolvedOnline ? "n/a" : (resolvedOnline ? "true" : "false"));
+            builder.Append("Resolved all data sources: ");
+            builder.AppendLine(FormatStringList(resolvedAllDataSources));
+            builder.Append("Resolved physical data sources: ");
+            builder.AppendLine(FormatStringList(resolvedPhysicalDataSources));
             builder.Append("Resolved energy units: ");
             builder.AppendLine(FormatBeamGageUnits(resolvedEnergyUnitBase, resolvedEnergyUnitQuantifier));
             builder.Append("Resolved scale multiplier: ");
             builder.AppendLine(resolvedScaleMultiplier.HasValue ? resolvedScaleMultiplier.Value.ToString("G17") : "n/a");
+            builder.Append("OnNewFrame callbacks: ");
+            builder.AppendLine(onNewFrameCallbackCount.ToString(CultureInfo.InvariantCulture));
+            builder.Append("Event frames accepted: ");
+            builder.AppendLine(eventFrameCount.ToString(CultureInfo.InvariantCulture));
+            builder.Append("Polling attempts: ");
+            builder.AppendLine(pollFrameAttemptCount.ToString(CultureInfo.InvariantCulture));
+            builder.Append("Polling frames accepted: ");
+            builder.AppendLine(polledFrameCount.ToString(CultureInfo.InvariantCulture));
+            builder.Append("Duplicate frame skips: ");
+            builder.AppendLine(duplicateFrameSkipCount.ToString(CultureInfo.InvariantCulture));
+            builder.Append("Last observed vendor frame ID: ");
+            builder.AppendLine(lastObservedFrameId > 0L ? lastObservedFrameId.ToString(CultureInfo.InvariantCulture) : "n/a");
+            builder.Append("Last frame read error: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(lastFrameReadError) ? "none" : lastFrameReadError);
             builder.AppendLine();
             builder.Append("Outcome: ");
             builder.AppendLine(outcome);
@@ -516,6 +586,111 @@ namespace LaserEnergyMonitor.Wpf
             string report = builder.ToString().Trim();
             new FileApplicationLogger(_logPath).Info("BeamGage smoke-test completed." + Environment.NewLine + report);
             WriteSmokeTestReport(report, "beamgage-smoke-test");
+            return report;
+        }
+
+        public string RunBeamGageVendorProbe(string selectedFirstSourceKey)
+        {
+            MeasurementSourceOption selectedOption = GetFirstSourceOption(selectedFirstSourceKey);
+            MeasurementSourceRuntimeProbeResult probe = GetFirstSourceOption(BeamGageSdkSourceKey).ProbeRuntime();
+            StringBuilder builder = new StringBuilder();
+            builder.Append("BeamGage vendor probe generated at ");
+            builder.Append(_clock.UtcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+            builder.AppendLine();
+            builder.Append("Selected UI source: ");
+            builder.AppendLine(selectedOption.DisplayName);
+            builder.AppendLine("Executed source: BeamGage SDK");
+            builder.AppendLine("Mode: Minimal vendor automation probe");
+            builder.Append("Duration: ");
+            builder.AppendLine(_beamGageSmokeTestDuration.ToString());
+            builder.AppendLine("Reference flow: AutomatedBeamGage(showGui=true), AutomationFrameEvents(ResultsPriorityFrame).OnNewFrame, DataSource.Start/Stop, Instance.Shutdown");
+            builder.Append("Configured automation instance: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.AutomationInstanceId) ? "default" : _beamGageOptions.AutomationInstanceId);
+            builder.Append("Configured data source: ");
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.DataSource) ? "auto-first-physical" : _beamGageOptions.DataSource);
+            builder.AppendLine();
+            builder.Append("Runtime probe summary: ");
+            builder.AppendLine(probe.Summary);
+            builder.Append("Runtime probe details: ");
+            builder.AppendLine(probe.Details);
+            builder.AppendLine();
+
+            string outcome;
+            Exception executionException = null;
+            BeamGageVendorProbeResult result = null;
+            if (!probe.DependencyAvailable)
+            {
+                outcome = "Runtime unavailable. Vendor probe was not attempted.";
+            }
+            else
+            {
+                try
+                {
+                    result = BeamGageVendorProbe.Run(CloneBeamGageOptions(_beamGageOptions), _beamGageSmokeTestDuration);
+                    outcome = result.CallbackCount > 0
+                        ? "Vendor automation OnNewFrame callbacks were received."
+                        : "Vendor automation started, but no OnNewFrame callbacks were received during the probe window.";
+                }
+                catch (Exception ex)
+                {
+                    executionException = ex;
+                    outcome = "Vendor automation probe failed before callbacks were confirmed.";
+                }
+            }
+
+            if (result != null)
+            {
+                builder.Append("Install path: ");
+                builder.AppendLine(string.IsNullOrWhiteSpace(result.InstallPath) ? "n/a" : result.InstallPath);
+                builder.Append("All data sources: ");
+                builder.AppendLine(FormatStringList(result.DataSources));
+                builder.Append("Physical data sources: ");
+                builder.AppendLine(FormatStringList(result.PhysicalDataSources));
+                builder.Append("Selected data source: ");
+                builder.AppendLine(string.IsNullOrWhiteSpace(result.SelectedDataSource) ? "n/a" : result.SelectedDataSource);
+                builder.Append("Current data source: ");
+                builder.AppendLine(string.IsNullOrWhiteSpace(result.CurrentDataSource) ? "n/a" : result.CurrentDataSource);
+                builder.Append("Status before start: ");
+                builder.AppendLine(string.IsNullOrWhiteSpace(result.StatusBeforeStart) ? "n/a" : result.StatusBeforeStart);
+                builder.Append("Status after stop: ");
+                builder.AppendLine(string.IsNullOrWhiteSpace(result.StatusAfterStop) ? "n/a" : result.StatusAfterStop);
+                builder.Append("Power meter: ");
+                builder.AppendLine(string.IsNullOrWhiteSpace(result.PowerMeter) ? "n/a" : result.PowerMeter);
+                builder.Append("Wavelength: ");
+                builder.AppendLine(string.IsNullOrWhiteSpace(result.WaveLength) ? "n/a" : result.WaveLength);
+                builder.Append("OnNewFrame callbacks: ");
+                builder.AppendLine(result.CallbackCount.ToString(CultureInfo.InvariantCulture));
+                builder.Append("Frame read errors: ");
+                builder.AppendLine(result.ReadErrorCount.ToString(CultureInfo.InvariantCulture));
+                builder.Append("First vendor frame ID: ");
+                builder.AppendLine(result.FirstFrameId > 0L ? result.FirstFrameId.ToString(CultureInfo.InvariantCulture) : "n/a");
+                builder.Append("Last vendor frame ID: ");
+                builder.AppendLine(result.LastFrameId > 0L ? result.LastFrameId.ToString(CultureInfo.InvariantCulture) : "n/a");
+                builder.Append("First callback UTC: ");
+                builder.AppendLine(result.FirstCallbackUtc.HasValue ? result.FirstCallbackUtc.Value.ToString("O") : "n/a");
+                builder.Append("Last callback UTC: ");
+                builder.AppendLine(result.LastCallbackUtc.HasValue ? result.LastCallbackUtc.Value.ToString("O") : "n/a");
+                builder.Append("Energy min/max: ");
+                builder.AppendLine(
+                    result.MinEnergy.HasValue && result.MaxEnergy.HasValue
+                        ? result.MinEnergy.Value.ToString("0.000000") + " / " + result.MaxEnergy.Value.ToString("0.000000")
+                        : "n/a");
+                builder.Append("Last read error: ");
+                builder.AppendLine(string.IsNullOrWhiteSpace(result.LastReadError) ? "none" : result.LastReadError);
+                builder.AppendLine();
+            }
+
+            builder.Append("Outcome: ");
+            builder.AppendLine(outcome);
+            if (executionException != null)
+            {
+                builder.Append("Exception: ");
+                builder.AppendLine(executionException.Message);
+            }
+
+            string report = builder.ToString().Trim();
+            new FileApplicationLogger(_logPath).Info("BeamGage vendor probe completed." + Environment.NewLine + report);
+            WriteSmokeTestReport(report, "beamgage-vendor-probe");
             return report;
         }
 
@@ -783,6 +958,9 @@ namespace LaserEnergyMonitor.Wpf
             options.PowerMeter = ReadAppSetting("MeasurementSources.BeamGagePowerMeter");
             options.WaveLength = ReadAppSetting("MeasurementSources.BeamGageWaveLength");
             options.TimestampStrategy = ParseBeamGageTimestampStrategy(ReadAppSetting("MeasurementSources.BeamGageTimestampStrategy"));
+            options.FrameTimeout = ParseBeamGageFrameTimeout(ReadAppSetting("MeasurementSources.BeamGageFrameTimeoutMs"));
+            options.PollingFallbackEnabled = ParseBool(ReadAppSetting("MeasurementSources.BeamGagePollingFallbackEnabled"), true);
+            options.PollingFallbackInterval = ParseBeamGagePollingFallbackInterval(ReadAppSetting("MeasurementSources.BeamGagePollingFallbackIntervalMs"));
             options.ResetPowerEnergyCalibrationOnStart = ParseBool(ReadAppSetting("MeasurementSources.BeamGageResetPowerEnergyCalibrationOnStart"), false);
             options.PowerEnergyCalibrationValue = ParseNullableDouble(ReadAppSetting("MeasurementSources.BeamGagePowerEnergyCalibrationValue"));
             options.PowerEnergyCalibrationUnitBase = ReadAppSetting("MeasurementSources.BeamGagePowerEnergyCalibrationUnitBase");
@@ -806,6 +984,9 @@ namespace LaserEnergyMonitor.Wpf
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
                 TimestampStrategy = options.TimestampStrategy,
+                FrameTimeout = options.FrameTimeout,
+                PollingFallbackEnabled = options.PollingFallbackEnabled,
+                PollingFallbackInterval = options.PollingFallbackInterval,
                 ResetPowerEnergyCalibrationOnStart = options.ResetPowerEnergyCalibrationOnStart,
                 PowerEnergyCalibrationValue = options.PowerEnergyCalibrationValue,
                 PowerEnergyCalibrationUnitBase = options.PowerEnergyCalibrationUnitBase,
@@ -822,6 +1003,28 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             return null;
+        }
+
+        private static TimeSpan ParseBeamGageFrameTimeout(string value)
+        {
+            double durationMs = ParseDouble(value, BeamGageMeasurementOptions.Default.FrameTimeout.TotalMilliseconds);
+            if (durationMs < 500.0d)
+            {
+                durationMs = 500.0d;
+            }
+
+            return TimeSpan.FromMilliseconds(durationMs);
+        }
+
+        private static TimeSpan ParseBeamGagePollingFallbackInterval(string value)
+        {
+            double durationMs = ParseDouble(value, BeamGageMeasurementOptions.Default.PollingFallbackInterval.TotalMilliseconds);
+            if (durationMs < 5.0d)
+            {
+                durationMs = 5.0d;
+            }
+
+            return TimeSpan.FromMilliseconds(durationMs);
         }
 
         private static bool ParseBool(string value, bool fallback)
@@ -905,6 +1108,16 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             return unitQuantifier + " " + unitBase;
+        }
+
+        private static string FormatStringList(string[] values)
+        {
+            if (values == null || values.Length == 0)
+            {
+                return "none";
+            }
+
+            return string.Join(" | ", values);
         }
     }
 
