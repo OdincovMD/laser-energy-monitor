@@ -40,21 +40,65 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             return selectedDataSource;
         }
 
+        internal static string ResolveDataSource(
+            string[] availableDataSources,
+            string configuredDataSource,
+            bool allowBuiltInDataSources)
+        {
+            if (!allowBuiltInDataSources)
+            {
+                return ResolvePhysicalDataSource(availableDataSources, configuredDataSource);
+            }
+
+            string[] selectableDataSources = GetSelectableDataSources(availableDataSources, true);
+            if (selectableDataSources.Length == 0)
+            {
+                throw new InvalidOperationException("BeamGage automation server started, but no data sources were detected.");
+            }
+
+            if (string.IsNullOrWhiteSpace(configuredDataSource))
+            {
+                string[] physicalDataSources = GetPhysicalDataSources(availableDataSources);
+                return physicalDataSources.Length > 0 ? physicalDataSources[0] : selectableDataSources[0];
+            }
+
+            string selectedDataSource = ResolvePreferredItem(selectableDataSources, configuredDataSource);
+            if (selectedDataSource == null)
+            {
+                throw new InvalidOperationException(
+                    "BeamGage could not find the configured data source: " + configuredDataSource);
+            }
+
+            return selectedDataSource;
+        }
+
         internal static void EnsureActivePhysicalDataSource(
             string expectedDataSource,
             string currentDataSource,
             string[] availableDataSources)
         {
+            EnsureActiveDataSource(expectedDataSource, currentDataSource, availableDataSources, false);
+        }
+
+        internal static void EnsureActiveDataSource(
+            string expectedDataSource,
+            string currentDataSource,
+            string[] availableDataSources,
+            bool allowBuiltInDataSources)
+        {
             if (!IsPhysicalDataSource(expectedDataSource))
             {
-                throw new InvalidOperationException(
-                    "BeamGage SDK live mode does not have a valid physical data source selected.");
+                if (!allowBuiltInDataSources || !ContainsDataSource(availableDataSources, expectedDataSource))
+                {
+                    throw new InvalidOperationException(
+                        "BeamGage SDK live mode does not have a valid data source selected.");
+                }
             }
 
             if (!ContainsDataSource(availableDataSources, expectedDataSource))
             {
                 throw new InvalidOperationException(
-                    "BeamGage physical data source is no longer available: " + expectedDataSource);
+                    "BeamGage data source is no longer available: " + expectedDataSource);
             }
 
             if (!string.Equals(expectedDataSource, currentDataSource, StringComparison.OrdinalIgnoreCase))
@@ -71,9 +115,19 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             string[] availableDataSources,
             string status)
         {
+            return IsOnline(expectedDataSource, currentDataSource, availableDataSources, status, false);
+        }
+
+        internal static bool IsOnline(
+            string expectedDataSource,
+            string currentDataSource,
+            string[] availableDataSources,
+            string status,
+            bool allowBuiltInDataSources)
+        {
             try
             {
-                EnsureActivePhysicalDataSource(expectedDataSource, currentDataSource, availableDataSources);
+                EnsureActiveDataSource(expectedDataSource, currentDataSource, availableDataSources, allowBuiltInDataSources);
                 return !string.Equals(status, "UNAVAILABLE", StringComparison.OrdinalIgnoreCase);
             }
             catch (InvalidOperationException)
@@ -112,6 +166,31 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             }
 
             return physicalDataSources.ToArray();
+        }
+
+        internal static string[] GetSelectableDataSources(string[] availableDataSources, bool allowBuiltInDataSources)
+        {
+            if (!allowBuiltInDataSources)
+            {
+                return GetPhysicalDataSources(availableDataSources);
+            }
+
+            if (availableDataSources == null || availableDataSources.Length == 0)
+            {
+                return new string[0];
+            }
+
+            List<string> selectableDataSources = new List<string>();
+            for (int i = 0; i < availableDataSources.Length; i++)
+            {
+                string dataSource = availableDataSources[i];
+                if (!string.IsNullOrWhiteSpace(dataSource))
+                {
+                    selectableDataSources.Add(dataSource);
+                }
+            }
+
+            return selectableDataSources.ToArray();
         }
 
         private static bool ContainsDataSource(string[] availableDataSources, string expectedDataSource)

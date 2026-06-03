@@ -26,6 +26,8 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
         public string DataSource { get; set; }
 
+        public bool AllowBuiltInDataSources { get; set; }
+
         public string PowerMeter { get; set; }
 
         public string WaveLength { get; set; }

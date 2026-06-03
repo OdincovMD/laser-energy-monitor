@@ -110,7 +110,8 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                     CurrentDataSource,
                     Convert.ToString(GetPropertyValue(dataSource, "DataSource"), CultureInfo.InvariantCulture),
                     ToStringArray(GetPropertyValue(dataSource, "DataSourceList")),
-                    Convert.ToString(GetPropertyValue(dataSource, "Status"), CultureInfo.InvariantCulture));
+                    Convert.ToString(GetPropertyValue(dataSource, "Status"), CultureInfo.InvariantCulture),
+                    _options.AllowBuiltInDataSources);
             }
         }
 
@@ -128,8 +129,9 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
         {
             ThrowIfDisposed();
             object dataSource = GetPropertyValue(_beamGage, "DataSource");
-            return BeamGageDataSourceSelector.GetPhysicalDataSources(
-                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")));
+            return BeamGageDataSourceSelector.GetSelectableDataSources(
+                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")),
+                _options.AllowBuiltInDataSources);
         }
 
         internal string[] GetAvailableDataSources()
@@ -374,14 +376,18 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
         {
             object dataSource = GetPropertyValue(beamGage, "DataSource");
             string[] dataSourceList = ToStringArray(GetPropertyValue(dataSource, "DataSourceList"));
-            string selectedDataSource = BeamGageDataSourceSelector.ResolvePhysicalDataSource(dataSourceList, options.DataSource);
+            string selectedDataSource = BeamGageDataSourceSelector.ResolveDataSource(
+                dataSourceList,
+                options.DataSource,
+                options.AllowBuiltInDataSources);
             SetPropertyValue(dataSource, "DataSource", selectedDataSource);
 
             string currentDataSource = Convert.ToString(GetPropertyValue(dataSource, "DataSource"), CultureInfo.InvariantCulture);
-            BeamGageDataSourceSelector.EnsureActivePhysicalDataSource(
+            BeamGageDataSourceSelector.EnsureActiveDataSource(
                 selectedDataSource,
                 currentDataSource,
-                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")));
+                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")),
+                options.AllowBuiltInDataSources);
             return currentDataSource;
         }
 
@@ -688,6 +694,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 AutomationInstanceId = options.AutomationInstanceId,
                 ShowGui = options.ShowGui,
                 DataSource = options.DataSource,
+                AllowBuiltInDataSources = options.AllowBuiltInDataSources,
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
                 TimestampStrategy = options.TimestampStrategy,
@@ -722,10 +729,11 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
         private void EnsureActivePhysicalDataSource()
         {
             object dataSource = GetPropertyValue(_beamGage, "DataSource");
-            BeamGageDataSourceSelector.EnsureActivePhysicalDataSource(
+            BeamGageDataSourceSelector.EnsureActiveDataSource(
                 CurrentDataSource,
                 Convert.ToString(GetPropertyValue(dataSource, "DataSource"), CultureInfo.InvariantCulture),
-                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")));
+                ToStringArray(GetPropertyValue(dataSource, "DataSourceList")),
+                _options.AllowBuiltInDataSources);
         }
 
         private static void ShutdownBeamGage(object beamGage)

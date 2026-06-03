@@ -21,6 +21,7 @@ namespace LaserEnergyMonitor.Wpf
         private const string BeamGageSdkSourceKey = "beam-sdk";
         private const string OphirSdkSourceKey = "ophir-sdk";
         private const string OphirFastXSourceKey = "ophir-fastx";
+        private const string OphirFastXSimulationSourceKey = "ophir-fastx-sim";
         private readonly string _logPath;
         private readonly IOperatorNotifier _notifier;
         private readonly IClock _clock;
@@ -86,7 +87,13 @@ namespace LaserEnergyMonitor.Wpf
                     "Ophir Pulsar ActiveX (legacy)",
                     true,
                     () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions, OphirRuntimeBackend.PulsarFastX)),
-                    OphirFastXRuntimeProbe.Probe)
+                    OphirFastXRuntimeProbe.Probe),
+                new MeasurementSourceOption(
+                    "ophir-fastx-sim",
+                    "Simulated Pulsar ActiveX",
+                    true,
+                    () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions, OphirRuntimeBackend.SimulatedPulsarFastX)),
+                    OphirFastXSimulationRuntimeProbe.Probe)
             };
 
             if (!string.IsNullOrWhiteSpace(_ophirOptions.ReplayFilePath))
@@ -135,7 +142,7 @@ namespace LaserEnergyMonitor.Wpf
         {
             if (string.IsNullOrWhiteSpace(dataSource))
             {
-                throw new InvalidOperationException("Select a physical BeamGage data source before connecting.");
+                throw new InvalidOperationException("Select a BeamGage data source before connecting.");
             }
 
             _beamGageOptions.DataSource = dataSource;
@@ -211,7 +218,7 @@ namespace LaserEnergyMonitor.Wpf
             builder.AppendLine(selectedOption.DisplayName);
             builder.Append("Executed source: ");
             builder.AppendLine(ophirSdkOption.DisplayName);
-            builder.AppendLine("Mode: Forced real SDK smoke-test");
+            builder.AppendLine("Mode: Selected Ophir backend smoke-test");
             builder.Append("Duration: ");
             builder.AppendLine(_ophirSmokeTestDuration.ToString());
             builder.Append("Configured serial: ");
@@ -398,7 +405,9 @@ namespace LaserEnergyMonitor.Wpf
             builder.Append("Configured show GUI: ");
             builder.AppendLine(_beamGageOptions.ShowGui ? "true" : "false");
             builder.Append("Configured data source: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.DataSource) ? "auto-first-physical" : _beamGageOptions.DataSource);
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.DataSource) ? "auto-first-available" : _beamGageOptions.DataSource);
+            builder.Append("Allow built-in data sources: ");
+            builder.AppendLine(_beamGageOptions.AllowBuiltInDataSources ? "true" : "false");
             builder.Append("Configured power meter: ");
             builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.PowerMeter) ? "auto-first-available" : _beamGageOptions.PowerMeter);
             builder.Append("Configured wavelength: ");
@@ -433,7 +442,7 @@ namespace LaserEnergyMonitor.Wpf
             string resolvedStatus = string.Empty;
             bool resolvedOnline = false;
             string[] resolvedAllDataSources = new string[0];
-            string[] resolvedPhysicalDataSources = new string[0];
+            string[] resolvedSelectableDataSources = new string[0];
             string resolvedEnergyUnitBase = string.Empty;
             string resolvedEnergyUnitQuantifier = string.Empty;
             double? resolvedScaleMultiplier = null;
@@ -484,7 +493,7 @@ namespace LaserEnergyMonitor.Wpf
                         resolvedStatus = source.CurrentDataSourceStatus;
                         resolvedOnline = source.IsSourceOnline;
                         resolvedAllDataSources = source.AvailableDataSources.ToArray();
-                        resolvedPhysicalDataSources = source.AvailablePhysicalDataSources.ToArray();
+                        resolvedSelectableDataSources = source.AvailablePhysicalDataSources.ToArray();
                         source.Start();
                         Thread.Sleep(_beamGageSmokeTestDuration);
                         resolvedEnergyUnitBase = source.CurrentEnergyUnitBase;
@@ -532,8 +541,8 @@ namespace LaserEnergyMonitor.Wpf
             builder.AppendLine(resolvedStatus == string.Empty && !resolvedOnline ? "n/a" : (resolvedOnline ? "true" : "false"));
             builder.Append("Resolved all data sources: ");
             builder.AppendLine(FormatStringList(resolvedAllDataSources));
-            builder.Append("Resolved physical data sources: ");
-            builder.AppendLine(FormatStringList(resolvedPhysicalDataSources));
+            builder.Append("Resolved selectable data sources: ");
+            builder.AppendLine(FormatStringList(resolvedSelectableDataSources));
             builder.Append("Resolved energy units: ");
             builder.AppendLine(FormatBeamGageUnits(resolvedEnergyUnitBase, resolvedEnergyUnitQuantifier));
             builder.Append("Resolved scale multiplier: ");
@@ -607,7 +616,9 @@ namespace LaserEnergyMonitor.Wpf
             builder.Append("Configured automation instance: ");
             builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.AutomationInstanceId) ? "default" : _beamGageOptions.AutomationInstanceId);
             builder.Append("Configured data source: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.DataSource) ? "auto-first-physical" : _beamGageOptions.DataSource);
+            builder.AppendLine(string.IsNullOrWhiteSpace(_beamGageOptions.DataSource) ? "auto-first-available" : _beamGageOptions.DataSource);
+            builder.Append("Allow built-in data sources: ");
+            builder.AppendLine(_beamGageOptions.AllowBuiltInDataSources ? "true" : "false");
             builder.AppendLine();
             builder.Append("Runtime probe summary: ");
             builder.AppendLine(probe.Summary);
@@ -644,7 +655,7 @@ namespace LaserEnergyMonitor.Wpf
                 builder.AppendLine(string.IsNullOrWhiteSpace(result.InstallPath) ? "n/a" : result.InstallPath);
                 builder.Append("All data sources: ");
                 builder.AppendLine(FormatStringList(result.DataSources));
-                builder.Append("Physical data sources: ");
+                builder.Append("Selectable data sources: ");
                 builder.AppendLine(FormatStringList(result.PhysicalDataSources));
                 builder.Append("Selected data source: ");
                 builder.AppendLine(string.IsNullOrWhiteSpace(result.SelectedDataSource) ? "n/a" : result.SelectedDataSource);
@@ -900,6 +911,12 @@ namespace LaserEnergyMonitor.Wpf
                 return GetSecondSourceOption(OphirFastXSourceKey);
             }
 
+            if (selectedOption != null &&
+                string.Equals(selectedOption.Key, OphirFastXSimulationSourceKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return GetSecondSourceOption(OphirFastXSimulationSourceKey);
+            }
+
             return GetSecondSourceOption(OphirSdkSourceKey);
         }
 
@@ -955,6 +972,7 @@ namespace LaserEnergyMonitor.Wpf
             options.AutomationInstanceId = ReadAppSetting("MeasurementSources.BeamGageInstanceId");
             options.ShowGui = ParseBool(ReadAppSetting("MeasurementSources.BeamGageShowGui"), false);
             options.DataSource = ReadAppSetting("MeasurementSources.BeamGageDataSource");
+            options.AllowBuiltInDataSources = ParseBool(ReadAppSetting("MeasurementSources.BeamGageAllowBuiltInDataSources"), true);
             options.PowerMeter = ReadAppSetting("MeasurementSources.BeamGagePowerMeter");
             options.WaveLength = ReadAppSetting("MeasurementSources.BeamGageWaveLength");
             options.TimestampStrategy = ParseBeamGageTimestampStrategy(ReadAppSetting("MeasurementSources.BeamGageTimestampStrategy"));
@@ -981,6 +999,7 @@ namespace LaserEnergyMonitor.Wpf
                 AutomationInstanceId = options.AutomationInstanceId,
                 ShowGui = options.ShowGui,
                 DataSource = options.DataSource,
+                AllowBuiltInDataSources = options.AllowBuiltInDataSources,
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
                 TimestampStrategy = options.TimestampStrategy,

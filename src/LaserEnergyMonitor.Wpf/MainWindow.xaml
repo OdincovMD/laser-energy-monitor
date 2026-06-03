@@ -75,7 +75,7 @@
                                       SelectedValuePath="Key"
                                       SelectionChanged="OnSourceSelectionChanged" />
 
-                            <TextBlock Text="Physical sensor" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,4" />
+                            <TextBlock Text="BeamGage source" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,4" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />

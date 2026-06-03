@@ -23,6 +23,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Wpf", "src\LaserEnergyMonitor.Wpf\LaserEnergyMonitor.Wpf.csproj", "{E01BF95F-1893-4B74-A018-31C4F72B0A40}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BeamGageVendorProbe", "tools\BeamGageVendorProbe\BeamGageVendorProbe.csproj", "{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -141,6 +143,18 @@ Global
 		{E01BF95F-1893-4B74-A018-31C4F72B0A40}.Release|Any CPU.Build.0 = Release|x86
 		{E01BF95F-1893-4B74-A018-31C4F72B0A40}.Release|x64.ActiveCfg = Release|x86
 		{E01BF95F-1893-4B74-A018-31C4F72B0A40}.Release|x64.Build.0 = Release|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Debug|x86.ActiveCfg = Debug|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Debug|x86.Build.0 = Debug|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Debug|Any CPU.Build.0 = Debug|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Debug|x64.ActiveCfg = Debug|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Debug|x64.Build.0 = Debug|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|x86.ActiveCfg = Release|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|x86.Build.0 = Release|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|Any CPU.ActiveCfg = Release|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|Any CPU.Build.0 = Release|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|x64.ActiveCfg = Release|x86
+		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|x64.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -511,6 +511,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 AutomationInstanceId = options.AutomationInstanceId,
                 ShowGui = options.ShowGui,
                 DataSource = options.DataSource,
+                AllowBuiltInDataSources = options.AllowBuiltInDataSources,
                 PowerMeter = options.PowerMeter,
                 WaveLength = options.WaveLength,
                 TimestampStrategy = options.TimestampStrategy,

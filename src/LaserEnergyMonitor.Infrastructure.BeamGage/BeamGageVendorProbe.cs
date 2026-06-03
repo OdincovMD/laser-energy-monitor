@@ -85,8 +85,13 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
 
                 _dataSource = GetPropertyValue(_beamGage, "DataSource");
                 DataSources = ToStringArray(GetPropertyValue(_dataSource, "DataSourceList"));
-                PhysicalDataSources = BeamGageDataSourceSelector.GetPhysicalDataSources(DataSources);
-                SelectedDataSource = BeamGageDataSourceSelector.ResolvePhysicalDataSource(DataSources, _options.DataSource);
+                PhysicalDataSources = BeamGageDataSourceSelector.GetSelectableDataSources(
+                    DataSources,
+                    _options.AllowBuiltInDataSources);
+                SelectedDataSource = BeamGageDataSourceSelector.ResolveDataSource(
+                    DataSources,
+                    _options.DataSource,
+                    _options.AllowBuiltInDataSources);
                 SetPropertyValue(_dataSource, "DataSource", SelectedDataSource);
                 CurrentDataSource = Convert.ToString(GetPropertyValue(_dataSource, "DataSource"), CultureInfo.InvariantCulture);
                 StatusBeforeStart = Convert.ToString(GetPropertyValue(_dataSource, "Status"), CultureInfo.InvariantCulture);

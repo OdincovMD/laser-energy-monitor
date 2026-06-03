@@ -179,14 +179,14 @@ namespace LaserEnergyMonitor.Wpf
         private void OnRefreshBeamGageSourcesClicked(object sender, RoutedEventArgs e)
         {
             RunUiAction(
-                "BeamGage sensor scan error",
+                "BeamGage source scan error",
                 delegate
                 {
                     EnsureBeamGageSdkSelected();
                     DisconnectServiceForBeamGageReconnection();
                     IReadOnlyList<string> dataSources = _runtimeFactory.DiscoverBeamGagePhysicalDataSources();
                     BindBeamGagePhysicalDataSources(dataSources, _runtimeFactory.ConfiguredBeamGageDataSource);
-                    AddEvent("BeamGage physical sensor scan completed.");
+                    AddEvent("BeamGage source scan completed.");
                 });
         }
 
@@ -200,13 +200,13 @@ namespace LaserEnergyMonitor.Wpf
                     string selectedDataSource = BeamPhysicalSourceComboBox.SelectedItem as string;
                     if (string.IsNullOrWhiteSpace(selectedDataSource))
                     {
-                        throw new InvalidOperationException("Select a physical BeamGage sensor before connecting.");
+                        throw new InvalidOperationException("Select a BeamGage source before connecting.");
                     }
 
                     DisconnectServiceForBeamGageReconnection();
                     _runtimeFactory.SelectBeamGagePhysicalDataSource(selectedDataSource);
                     EnsureInitializedService(BuildSettings(), true);
-                    AddEvent("BeamGage sensor connected: " + selectedDataSource);
+                    AddEvent("BeamGage source connected: " + selectedDataSource);
                 });
         }
 
@@ -443,7 +443,7 @@ namespace LaserEnergyMonitor.Wpf
         {
             if (!IsBeamGageSdkSelected())
             {
-                throw new InvalidOperationException("Select BeamGage SDK before scanning or connecting a physical BeamGage sensor.");
+                throw new InvalidOperationException("Select BeamGage SDK before scanning or connecting a BeamGage source.");
             }
         }
 
@@ -456,7 +456,7 @@ namespace LaserEnergyMonitor.Wpf
         {
             if (_service != null && IsSessionConfigurationLocked(_service.State))
             {
-                throw new InvalidOperationException("Stop the active measurement session before changing the BeamGage sensor.");
+                throw new InvalidOperationException("Stop the active measurement session before changing the BeamGage source.");
             }
 
             ReplaceService(null);

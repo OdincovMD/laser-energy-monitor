@@ -46,6 +46,38 @@ namespace LaserEnergyMonitor.Tests
         }
 
         [Fact]
+        public void ResolveDataSource_AllowsBeamMakerWhenBuiltInSourcesAreEnabled()
+        {
+            string selectedDataSource = BeamGageDataSourceSelector.ResolveDataSource(
+                new[] { "BeamMaker", "FileConsole" },
+                "BeamMaker",
+                true);
+
+            Assert.Equal("BeamMaker", selectedDataSource);
+        }
+
+        [Fact]
+        public void ResolveDataSource_PrefersPhysicalSourceWhenBuiltInSourcesAreEnabled()
+        {
+            string selectedDataSource = BeamGageDataSourceSelector.ResolveDataSource(
+                new[] { "BeamMaker", "SP928 #12345", "FileConsole" },
+                null,
+                true);
+
+            Assert.Equal("SP928 #12345", selectedDataSource);
+        }
+
+        [Fact]
+        public void GetSelectableDataSources_ReturnsBuiltInSourcesWhenEnabled()
+        {
+            string[] dataSources = BeamGageDataSourceSelector.GetSelectableDataSources(
+                new[] { "BeamMaker", "SP928 #12345", "FileConsole" },
+                true);
+
+            Assert.Equal(new[] { "BeamMaker", "SP928 #12345", "FileConsole" }, dataSources);
+        }
+
+        [Fact]
         public void EnsureActivePhysicalDataSource_RejectsUnexpectedSourceChange()
         {
             Assert.Throws<InvalidOperationException>(

@@ -322,6 +322,11 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 
         private IOphirRuntimeSession OpenRuntimeSession()
         {
+            if (_options.RuntimeBackend == OphirRuntimeBackend.SimulatedPulsarFastX)
+            {
+                return OphirFastXRuntimeSession.OpenSimulated(_options);
+            }
+
             if (_options.RuntimeBackend == OphirRuntimeBackend.PulsarFastX)
             {
                 return OphirFastXRuntimeSession.Open(_options);

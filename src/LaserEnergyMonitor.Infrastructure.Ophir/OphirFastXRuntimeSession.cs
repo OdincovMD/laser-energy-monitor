@@ -48,6 +48,21 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             EnsureStaThread();
             OphirMeasurementOptions effectiveOptions = options ?? OphirMeasurementOptions.Default;
             OphirFastXRuntimeHandle runtimeHandle = CreateRuntimeInstance();
+            return Open(effectiveOptions, runtimeHandle);
+        }
+
+        internal static OphirFastXRuntimeSession OpenSimulated(OphirMeasurementOptions options)
+        {
+            EnsureStaThread();
+            OphirMeasurementOptions effectiveOptions = options ?? OphirMeasurementOptions.Default;
+            OphirFastXRuntimeHandle runtimeHandle = OphirFastXRuntimeHandle.ForRawComObject(
+                new OphirFastXSimulatedActiveX(),
+                "Simulated OphirFastX ActiveX object");
+            return Open(effectiveOptions, runtimeHandle);
+        }
+
+        private static OphirFastXRuntimeSession Open(OphirMeasurementOptions effectiveOptions, OphirFastXRuntimeHandle runtimeHandle)
+        {
             object comObject = runtimeHandle.ComObject;
             bool usbOpened = false;
 
