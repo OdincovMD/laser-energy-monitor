@@ -196,8 +196,6 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 return;
             }
 
-            object dataSource = GetPropertyValue(_beamGage, "DataSource");
-            InvokeMethod(dataSource, "Start");
             lock (_frameGate)
             {
                 _lastPublishedFrameId = null;
@@ -211,6 +209,17 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             Interlocked.Exchange(ref _lastObservedFrameId, 0L);
             _lastFrameReadError = string.Empty;
             _streaming = true;
+
+            try
+            {
+                object dataSource = GetPropertyValue(_beamGage, "DataSource");
+                InvokeMethod(dataSource, "Start");
+            }
+            catch
+            {
+                _streaming = false;
+                throw;
+            }
         }
 
         internal void StopStream()
@@ -265,6 +274,11 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             }
 
             Interlocked.Increment(ref _onNewFrameCallbackCount);
+            if (_options.PollingFallbackEnabled)
+            {
+                return;
+            }
+
             try
             {
                 BeamGageFrameSnapshot snapshot = ReadSnapshot();
@@ -327,7 +341,9 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             Interlocked.Exchange(ref _lastObservedFrameId, frameId);
             lock (_frameGate)
             {
-                if (!BeamGageDataSourceSelector.ShouldPublishFrame(frameId, _lastPublishedFrameId))
+                bool allowNonMonotonicFrameIds = _options.AllowBuiltInDataSources &&
+                    !BeamGageDataSourceSelector.IsPhysicalDataSource(CurrentDataSource);
+                if (!BeamGageDataSourceSelector.ShouldPublishFrame(frameId, _lastPublishedFrameId, allowNonMonotonicFrameIds))
                 {
                     Interlocked.Increment(ref _duplicateFrameSkipCount);
                     return null;

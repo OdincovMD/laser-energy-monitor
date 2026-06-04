@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading;
 using LaserEnergyMonitor.Infrastructure.Ophir;
 using Xunit;
@@ -39,6 +40,16 @@ namespace LaserEnergyMonitor.Tests
                     10,
                     0,
                     DateTime.UtcNow));
+        }
+
+        [Fact]
+        public void OpenUsb_WhenComThrows_ExplainsVendorUsbLayer()
+        {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => OphirFastXRuntimeSession.OpenUsb(new ThrowingOpenUsbActiveX()));
+
+            Assert.Contains("vendor USB layer", exception.Message);
+            Assert.Contains("HRESULT=0x8000FFFF", exception.Message);
         }
 
         [Fact]
@@ -99,6 +110,14 @@ namespace LaserEnergyMonitor.Tests
                 Assert.True(source.AcceptedSampleCount > 0);
                 Assert.Equal("2601001", source.CurrentSerialNumber);
                 Assert.Equal(0, source.CurrentChannel);
+            }
+        }
+
+        private sealed class ThrowingOpenUsbActiveX
+        {
+            public int OpenUSB(ref int warning)
+            {
+                throw new COMException("Simulated destructive failure", unchecked((int)0x8000FFFF));
             }
         }
     }

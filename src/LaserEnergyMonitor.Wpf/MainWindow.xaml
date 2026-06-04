@@ -122,7 +122,7 @@
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Sync ms" Style="{StaticResource SetupFieldLabel}" />
-                                <TextBox x:Name="SyncDeltaTextBox" Text="10" />
+                                <TextBox x:Name="SyncDeltaTextBox" Text="1000" />
                             </StackPanel>
                         </Grid>
 
@@ -150,7 +150,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="Desync limit" Style="{StaticResource SetupFieldLabel}" />
-                                <TextBox x:Name="DesyncLimitTextBox" Text="3" />
+                                <TextBox x:Name="DesyncLimitTextBox" Text="0" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Policy" Style="{StaticResource SetupFieldLabel}" />
@@ -184,6 +184,7 @@
                             <Button x:Name="SelfTestButton" Content="Self-Test" Style="{StaticResource SetupSecondaryButton}" Margin="0,0,0,8" Click="OnSelfTestClicked" />
                             <Button x:Name="BeamGageTestButton" Content="BeamGage Test" Style="{StaticResource SetupSecondaryButton}" Margin="0,0,8,8" Click="OnBeamGageSmokeTestClicked" />
                             <Button x:Name="OphirTestButton" Content="Ophir Smoke-Test" Style="{StaticResource SetupSecondaryButton}" Margin="0,0,0,8" Click="OnOphirSmokeTestClicked" />
+                            <Button x:Name="UsbDevicesTestButton" Content="USB Devices" Style="{StaticResource SetupSecondaryButton}" Margin="0,0,8,8" Click="OnUsbDevicesTestClicked" />
                         </UniformGrid>
 
                         <Grid Margin="0,8,0,0">
@@ -216,89 +217,15 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="14" />
-                        <RowDefinition Height="138" />
-                        <RowDefinition Height="14" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <StackPanel>
                         <TextBlock Text="Live Measurements" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Text="Paired values and live trend"
+                        <TextBlock Text="Paired values and current status"
                                    Style="{StaticResource SectionCaption}" />
                     </StackPanel>
 
-                    <Border Grid.Row="2"
-                            Style="{StaticResource MetricTile}"
-                            Padding="14,12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="8" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="8" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Trend"
-                                           Style="{StaticResource FieldLabel}"
-                                           Margin="0" />
-                                <TextBlock x:Name="TrendRangeText"
-                                           Grid.Column="1"
-                                           Text="Waiting for samples"
-                                           Foreground="{StaticResource MutedTextBrush}"
-                                           FontSize="12" />
-                            </Grid>
-                            <Canvas x:Name="TrendPlotCanvas"
-                                    Grid.Row="2"
-                                    Background="#FFFFFF"
-                                    ClipToBounds="True"
-                                    MinHeight="84"
-                                    SnapsToDevicePixels="True"
-                                    UseLayoutRounding="True"
-                                    Loaded="OnTrendPlotLoaded"
-                                    SizeChanged="OnTrendPlotSizeChanged">
-                                <Line X1="0" Y1="20" X2="900" Y2="20" Stroke="#D7E0EA" StrokeThickness="1" />
-                                <Line X1="0" Y1="48" X2="900" Y2="48" Stroke="#D7E0EA" StrokeThickness="1" />
-                                <Line X1="0" Y1="76" X2="900" Y2="76" Stroke="#D7E0EA" StrokeThickness="1" />
-                                <Polyline x:Name="BeamTrendLine"
-                                          Stroke="#1F6FBF"
-                                          StrokeThickness="2"
-                                          StrokeLineJoin="Round" />
-                                <Polyline x:Name="OphirTrendLine"
-                                          Stroke="#B7791F"
-                                          StrokeThickness="2"
-                                          StrokeLineJoin="Round" />
-                                <Polyline x:Name="StabilityTrendLine"
-                                          Stroke="#1F7A4D"
-                                          StrokeThickness="2"
-                                          StrokeLineJoin="Round" />
-                            </Canvas>
-                            <UniformGrid Grid.Row="4" Columns="3">
-                                <TextBlock x:Name="TrendBeamText"
-                                           Text="Beam --"
-                                           Foreground="{StaticResource AccentBrush}"
-                                           FontSize="12"
-                                           FontWeight="SemiBold" />
-                                <TextBlock x:Name="TrendOphirText"
-                                           Text="Ophir --"
-                                           Foreground="{StaticResource WarningBrush}"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           TextAlignment="Center" />
-                                <TextBlock x:Name="TrendStabilityText"
-                                           Text="Stability --"
-                                           Foreground="{StaticResource SuccessBrush}"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           TextAlignment="Right" />
-                            </UniformGrid>
-                        </Grid>
-                    </Border>
-
-                    <UniformGrid Grid.Row="4" Columns="2" Rows="4">
+                    <UniformGrid Grid.Row="2" Columns="2" Rows="4">
                         <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
                             <StackPanel>
                                 <TextBlock Text="Beam Energy" Style="{StaticResource FieldLabel}" />

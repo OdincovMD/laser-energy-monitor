@@ -45,6 +45,7 @@
 Для первичной проверки используйте:
 
 - `Self-Test`
+- `USB Devices`
 - `Ophir Smoke-Test`
 
 ### 3. Выполнить Hardware Self-Test
@@ -59,7 +60,15 @@
 - есть ли активный датчик;
 - можно ли перейти к краткой проверке потока.
 
-### 4. Выполнить Ophir Smoke-Test
+### 4. Выполнить USB Devices
+
+Нажмите кнопку `USB Devices`.
+
+Эта проверка не использует Ophir SDK / ActiveX. Она формирует список USB-устройств, которые видит Windows, и отдельно подсвечивает совпадения по `Ophir`, `Pulsar`, `Jungo`, `WinDriver`, `StarLab`.
+
+Это полезно, если фирменная программа Ophir видит контроллер, но `Ophir Smoke-Test` падает на `OpenUSB`: так можно сравнить Windows-видимость устройства с видимостью через vendor runtime.
+
+### 5. Выполнить Ophir Smoke-Test
 
 Нажмите кнопку `Ophir Smoke-Test`.
 
@@ -96,9 +105,11 @@
 Просим прислать следующие материалы:
 
 - полный текст окна `Hardware Self-Test`;
+- полный текст окна `USB Devices`;
 - полный текст окна `Ophir Smoke-Test`;
 - файл `application.log`;
 - файл вида `hardware-self-test-*.txt`;
+- файл вида `usb-inventory-*.txt`;
 - файл вида `ophir-smoke-test-*.txt`;
 - если появились файлы в папке `ophir-captures`, приложить их тоже.
 

@@ -6,6 +6,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
     internal static class BeamGageDataSourceSelector
     {
         private const string BeamMakerDataSource = "BeamMaker";
+        private const string FileDataSource = "File";
         private const string FileConsoleDataSource = "FileConsole";
 
         internal static string ResolvePhysicalDataSource(string[] availableDataSources, string configuredDataSource)
@@ -15,7 +16,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             {
                 throw new InvalidOperationException(
                     "BeamGage automation server started, but no physical data sources were detected. " +
-                    "Built-in BeamMaker and FileConsole sources are not accepted in BeamGage SDK live mode.");
+                    "Built-in BeamMaker, File, and FileConsole sources are not accepted in BeamGage SDK live mode.");
             }
 
             if (string.IsNullOrWhiteSpace(configuredDataSource))
@@ -141,10 +142,19 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             return !lastPublishedFrameId.HasValue || frameId > lastPublishedFrameId.Value;
         }
 
+        internal static bool ShouldPublishFrame(
+            long frameId,
+            long? lastPublishedFrameId,
+            bool allowNonMonotonicFrameIds)
+        {
+            return allowNonMonotonicFrameIds || ShouldPublishFrame(frameId, lastPublishedFrameId);
+        }
+
         internal static bool IsPhysicalDataSource(string dataSource)
         {
             return !string.IsNullOrWhiteSpace(dataSource) &&
                 !string.Equals(dataSource, BeamMakerDataSource, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(dataSource, FileDataSource, StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(dataSource, FileConsoleDataSource, StringComparison.OrdinalIgnoreCase);
         }
 

@@ -208,6 +208,26 @@ namespace LaserEnergyMonitor.Tests
         }
 
         [Fact]
+        public void MeasurementSessionService_AcceptsMeasurementsEmittedDuringSourceStart()
+        {
+            ServiceHarness harness = CreateHarness();
+            using (MeasurementSessionService service = harness.Service)
+            {
+                harness.FirstSource.OnStart = source => source.EmitMeasurement(1L, harness.StartTimeUtc, 10d);
+                harness.SecondSource.OnStart = source => source.EmitMeasurement(1L, harness.StartTimeUtc.AddMilliseconds(2), 20d);
+
+                service.Initialize(CreateSettings(maxConsecutiveDesynchronizations: 0, desynchronizationPolicyAction: DesynchronizationPolicyAction.LogOnly));
+                service.Start();
+
+                Assert.Equal(MeasurementSessionState.Measuring, service.State);
+                Assert.Single(harness.Exporter.Measurements);
+                Assert.Equal(1L, harness.Exporter.Measurements[0].PairId);
+                Assert.Equal(10d, harness.Exporter.Measurements[0].FirstSample.Energy);
+                Assert.Equal(20d, harness.Exporter.Measurements[0].SecondSample.Energy);
+            }
+        }
+
+        [Fact]
         public void MeasurementSessionService_DisposeDuringActiveRun_AbortsSessionWithDisposedSummary()
         {
             ServiceHarness harness = CreateHarness();

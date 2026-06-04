@@ -161,8 +161,8 @@ namespace LaserEnergyMonitor.Wpf
                 secondOption.CreateSource(),
                 new TimeWindowMeasurementSynchronizer(),
                 new RollingStationarityDetector(),
-                new PrototypeExcelExporter(),
-                new FileApplicationLogger(_logPath),
+                new AsyncMeasurementExporter(new PrototypeExcelExporter()),
+                new AsyncApplicationLogger(new FileApplicationLogger(_logPath)),
                 _notifier,
                 _clock);
         }
@@ -202,6 +202,14 @@ namespace LaserEnergyMonitor.Wpf
             string report = builder.ToString().Trim();
             new FileApplicationLogger(_logPath).Info("Hardware self-test completed." + Environment.NewLine + report);
             WriteSelfTestReport(report);
+            return report;
+        }
+
+        public string RunUsbInventory()
+        {
+            string report = UsbDeviceInventory.BuildReport(_clock.UtcNow.ToLocalTime());
+            new FileApplicationLogger(_logPath).Info("USB inventory completed." + Environment.NewLine + report);
+            WriteSmokeTestReport(report, "usb-inventory");
             return report;
         }
 
@@ -970,7 +978,7 @@ namespace LaserEnergyMonitor.Wpf
         {
             BeamGageMeasurementOptions options = BeamGageMeasurementOptions.Default;
             options.AutomationInstanceId = ReadAppSetting("MeasurementSources.BeamGageInstanceId");
-            options.ShowGui = ParseBool(ReadAppSetting("MeasurementSources.BeamGageShowGui"), false);
+            options.ShowGui = ParseBool(ReadAppSetting("MeasurementSources.BeamGageShowGui"), BeamGageMeasurementOptions.Default.ShowGui);
             options.DataSource = ReadAppSetting("MeasurementSources.BeamGageDataSource");
             options.AllowBuiltInDataSources = ParseBool(ReadAppSetting("MeasurementSources.BeamGageAllowBuiltInDataSources"), true);
             options.PowerMeter = ReadAppSetting("MeasurementSources.BeamGagePowerMeter");

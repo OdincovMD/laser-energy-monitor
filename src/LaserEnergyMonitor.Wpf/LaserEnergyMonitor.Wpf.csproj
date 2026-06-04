@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.Configuration" />
+    <Reference Include="System.Management" />
     <ProjectReference Include="..\LaserEnergyMonitor.Application\LaserEnergyMonitor.Application.csproj" />
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure\LaserEnergyMonitor.Infrastructure.csproj" />
     <ProjectReference Include="..\LaserEnergyMonitor.Infrastructure.BeamGage\LaserEnergyMonitor.Infrastructure.BeamGage.csproj" />

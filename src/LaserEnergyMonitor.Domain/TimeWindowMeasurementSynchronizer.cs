@@ -131,13 +131,14 @@ namespace LaserEnergyMonitor.Domain
                     continue;
                 }
 
-                if (IsStale(oldest, otherList))
+                MeasurementSample newestCandidate = GetNewestSample(otherList);
+                if (IsStale(oldest, newestCandidate))
                 {
                     oldestList.RemoveAt(0);
                     desynchronizedSamples.Add(
                         new DesynchronizationEventArgs(
                             oldest,
-                            "No matching sample was found before the synchronization window expired."));
+                            BuildStaleSampleReason(oldest, newestCandidate)));
                     continue;
                 }
 
@@ -168,15 +169,43 @@ namespace LaserEnergyMonitor.Domain
             return bestIndex;
         }
 
-        private bool IsStale(MeasurementSample sample, List<MeasurementSample> candidates)
+        private bool IsStale(MeasurementSample sample, MeasurementSample newestCandidate)
         {
-            if (sample == null || candidates == null || candidates.Count == 0)
+            if (sample == null || newestCandidate == null)
             {
                 return false;
             }
 
-            MeasurementSample newestCandidate = candidates[candidates.Count - 1];
             return newestCandidate.TimestampUtc - sample.TimestampUtc > _maxDelta;
+        }
+
+        private static MeasurementSample GetNewestSample(List<MeasurementSample> samples)
+        {
+            if (samples == null || samples.Count == 0)
+            {
+                return null;
+            }
+
+            return samples[samples.Count - 1];
+        }
+
+        private string BuildStaleSampleReason(MeasurementSample staleSample, MeasurementSample newestCandidate)
+        {
+            if (staleSample == null || newestCandidate == null)
+            {
+                return "No matching sample was found before the synchronization window expired.";
+            }
+
+            TimeSpan actualDelta = (newestCandidate.TimestampUtc - staleSample.TimestampUtc).Duration();
+            return "No matching sample was found before the synchronization window expired. " +
+                "Stale source: " + staleSample.SourceId +
+                ", stale sequence: " + staleSample.SequenceNumber +
+                ", stale timestamp UTC: " + staleSample.TimestampUtc.ToString("O") +
+                ", newest other source: " + newestCandidate.SourceId +
+                ", newest other sequence: " + newestCandidate.SequenceNumber +
+                ", newest other timestamp UTC: " + newestCandidate.TimestampUtc.ToString("O") +
+                ", delta ms: " + actualDelta.TotalMilliseconds.ToString("0.###") +
+                ", window ms: " + _maxDelta.TotalMilliseconds.ToString("0.###") + ".";
         }
 
         private static void InsertSorted(List<MeasurementSample> samples, MeasurementSample sample)

@@ -11,11 +11,12 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                 return new BeamGageMeasurementOptions
                 {
                     AutomationInstanceId = "LaserEnergyMonitor",
-                    ShowGui = false,
+                    ShowGui = true,
+                    AllowBuiltInDataSources = true,
                     TimestampStrategy = BeamGageTimestampStrategy.HostArrivalUtc,
-                    FrameTimeout = TimeSpan.FromSeconds(3),
+                    FrameTimeout = TimeSpan.FromSeconds(10),
                     PollingFallbackEnabled = true,
-                    PollingFallbackInterval = TimeSpan.FromMilliseconds(20)
+                    PollingFallbackInterval = TimeSpan.FromMilliseconds(50)
                 };
             }
         }

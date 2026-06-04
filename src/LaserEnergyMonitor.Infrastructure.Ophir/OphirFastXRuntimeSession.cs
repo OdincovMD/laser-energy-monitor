@@ -404,6 +404,16 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
 
         private static Exception CreateInvocationException(string methodName, Exception ex)
         {
+            if (string.Equals(methodName, "OpenUSB", StringComparison.OrdinalIgnoreCase))
+            {
+                return new InvalidOperationException(
+                    "OphirFastX SDK call failed for 'OpenUSB'." + Environment.NewLine +
+                    "The ActiveX type is registered and activated, but the vendor USB layer could not be initialized." + Environment.NewLine +
+                    "Typical causes: the Pulsar driver is missing or mismatched, StarLab/Ophir software already holds the device, another OphirFastX instance is active, or the installed vendor package does not match the app's x86 runtime." + Environment.NewLine +
+                    BuildExceptionDetails(ex),
+                    ex);
+            }
+
             return new InvalidOperationException(
                 "OphirFastX SDK call failed for '" + methodName + "'." + Environment.NewLine +
                 BuildExceptionDetails(ex),

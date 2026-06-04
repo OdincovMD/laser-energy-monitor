@@ -434,11 +434,7 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
                             DateTimeKind.Utc);
                         if (DateTime.UtcNow - lastFrameReceivedUtc >= frameTimeout)
                         {
-                            ReportStreamingFault(
-                                "BeamGage physical data source stopped delivering new frames for " +
-                                frameTimeout.TotalSeconds.ToString("0.###") +
-                                " seconds: " + CurrentDataSource,
-                                null);
+                            ReportStreamingFault(BuildFrameTimeoutMessage(frameTimeout), null);
                             break;
                         }
 
@@ -530,6 +526,20 @@ namespace LaserEnergyMonitor.Infrastructure.BeamGage
             return _options.FrameTimeout > TimeSpan.Zero
                 ? _options.FrameTimeout
                 : BeamGageMeasurementOptions.Default.FrameTimeout;
+        }
+
+        private string BuildFrameTimeoutMessage(TimeSpan frameTimeout)
+        {
+            return "BeamGage data source stopped delivering publishable frames for " +
+                frameTimeout.TotalSeconds.ToString("0.###") +
+                " seconds: " + CurrentDataSource +
+                ". Status: " + (string.IsNullOrWhiteSpace(CurrentDataSourceStatus) ? "n/a" : CurrentDataSourceStatus) +
+                ". OnNewFrame callbacks: " + OnNewFrameCallbackCount +
+                ". Poll attempts: " + PollFrameAttemptCount +
+                ". Polled frames accepted: " + PolledFrameCount +
+                ". Duplicate skips: " + DuplicateFrameSkipCount +
+                ". Last observed frame ID: " + LastObservedFrameId +
+                ". Last frame read error: " + (string.IsNullOrWhiteSpace(LastFrameReadError) ? "none" : LastFrameReadError);
         }
 
         private static TimeSpan GetWatchdogInterval(TimeSpan frameTimeout)

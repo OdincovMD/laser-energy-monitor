@@ -129,9 +129,9 @@ namespace LaserEnergyMonitor.Application
             {
                 _exporter.StartSession(_metadata, _currentSettings);
                 RaiseEvent(SessionEventType.SessionStarted, "Measurement session started.", null, null, "session-started");
+                TransitionTo(MeasurementSessionState.Measuring);
                 _firstSource.Start();
                 _secondSource.Start();
-                TransitionTo(MeasurementSessionState.Measuring);
             }
             catch (Exception ex)
             {
@@ -200,6 +200,12 @@ namespace LaserEnergyMonitor.Application
                 _synchronizer.Desynchronized -= OnDesynchronized;
 
                 _exporter.Dispose();
+                IDisposable disposableLogger = _logger as IDisposable;
+                if (disposableLogger != null)
+                {
+                    disposableLogger.Dispose();
+                }
+
                 _firstSource.Dispose();
                 _secondSource.Dispose();
                 _disposed = true;

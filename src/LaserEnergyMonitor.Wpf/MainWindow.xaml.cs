@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using LaserEnergyMonitor.Application;
 using LaserEnergyMonitor.Domain;
 using Microsoft.Win32;
@@ -12,18 +13,22 @@ namespace LaserEnergyMonitor.Wpf
 {
     public partial class MainWindow : Window
     {
-        private const int MaxEventEntries = 500;
-        private const int TrendPointCapacity = 90;
+        private const int MaxEventEntries = 5;
+        private static readonly TimeSpan LiveUiUpdateInterval = TimeSpan.FromMilliseconds(100);
+        private static readonly TimeSpan EventLogUpdateInterval = TimeSpan.FromMilliseconds(250);
         private readonly MeasurementSessionRuntimeFactory _runtimeFactory;
         private readonly string _defaultOutputDir;
-        private readonly List<double> _beamEnergyTrend = new List<double>();
-        private readonly List<double> _ophirEnergyTrend = new List<double>();
-        private readonly List<double> _stabilityTrend = new List<double>();
         private readonly List<string> _eventLines = new List<string>();
+        private readonly object _liveUpdateGate = new object();
+        private readonly DispatcherTimer _liveUpdateTimer;
+        private readonly DispatcherTimer _eventLogTimer;
         private MeasurementSessionService _service;
+        private LiveMeasurementSnapshot _pendingLiveSnapshot;
         private string _activeFirstSourceKey;
         private string _activeSecondSourceKey;
         private int _stationaryEntries;
+        private bool _liveUpdatePumpActive;
+        private bool _eventLogDirty;
         private bool _isBindingStartupData;
 
         public MainWindow(MeasurementSessionRuntimeFactory runtimeFactory, string defaultOutputDir)
@@ -32,6 +37,12 @@ namespace LaserEnergyMonitor.Wpf
             _defaultOutputDir = defaultOutputDir;
 
             InitializeComponent();
+            _liveUpdateTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher);
+            _liveUpdateTimer.Interval = LiveUiUpdateInterval;
+            _liveUpdateTimer.Tick += OnLiveUpdateTimerTick;
+            _eventLogTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher);
+            _eventLogTimer.Interval = EventLogUpdateInterval;
+            _eventLogTimer.Tick += OnEventLogTimerTick;
             BindStartupData();
             UpdateState(MeasurementSessionState.Idle);
             ResetLiveValues();
@@ -42,6 +53,8 @@ namespace LaserEnergyMonitor.Wpf
 
         protected override void OnClosed(EventArgs e)
         {
+            _liveUpdateTimer.Stop();
+            _eventLogTimer.Stop();
             ReplaceService(null);
             base.OnClosed(e);
         }
@@ -67,7 +80,7 @@ namespace LaserEnergyMonitor.Wpf
                     new PolicyOption("Stop gracefully", DesynchronizationPolicyAction.StopGracefully),
                     new PolicyOption("Log only", DesynchronizationPolicyAction.LogOnly)
                 };
-                PolicyComboBox.SelectedIndex = 0;
+                PolicyComboBox.SelectedIndex = 2;
 
                 OutputPathTextBox.Text = Path.Combine(_defaultOutputDir, "measurement-session.xlsx");
                 OutputPathTextBox.ToolTip = OutputPathTextBox.Text;
@@ -147,6 +160,19 @@ namespace LaserEnergyMonitor.Wpf
                     RefreshSourceDiagnostics();
                     AddEvent("Hardware self-test completed.");
                     MessageBox.Show(this, report, "Hardware Self-Test", MessageBoxButton.OK, MessageBoxImage.Information);
+                });
+        }
+
+        private void OnUsbDevicesTestClicked(object sender, RoutedEventArgs e)
+        {
+            RunUiAction(
+                "USB inventory error",
+                delegate
+                {
+                    string report = _runtimeFactory.RunUsbInventory();
+                    DiagnosticsReportTextBox.Text = report;
+                    AddEvent("USB inventory completed.");
+                    MessageBox.Show(this, report, "USB Devices", MessageBoxButton.OK, MessageBoxImage.Information);
                 });
         }
 
@@ -232,6 +258,12 @@ namespace LaserEnergyMonitor.Wpf
         private void OnClearEventsClicked(object sender, RoutedEventArgs e)
         {
             _eventLines.Clear();
+            _eventLogDirty = false;
+            if (_eventLogTimer != null)
+            {
+                _eventLogTimer.Stop();
+            }
+
             if (EventsTextBox != null)
             {
                 EventsTextBox.Clear();
@@ -342,17 +374,60 @@ namespace LaserEnergyMonitor.Wpf
 
         private void OnLiveMeasurementUpdated(object sender, LiveMeasurementUpdatedEventArgs args)
         {
-            Dispatcher.BeginInvoke(new Action(delegate { UpdateLiveValues(args.Snapshot); }));
+            if (args == null || args.Snapshot == null)
+            {
+                return;
+            }
+
+            bool startPump = false;
+            lock (_liveUpdateGate)
+            {
+                _pendingLiveSnapshot = args.Snapshot;
+                if (!_liveUpdatePumpActive)
+                {
+                    _liveUpdatePumpActive = true;
+                    startPump = true;
+                }
+            }
+
+            if (startPump)
+            {
+                Dispatcher.BeginInvoke(
+                    new Action(EnsureLiveUpdatePumpRunning),
+                    DispatcherPriority.Background);
+            }
         }
 
-        private void OnTrendPlotSizeChanged(object sender, SizeChangedEventArgs e)
+        private void EnsureLiveUpdatePumpRunning()
         {
-            RedrawTrendStrip();
+            if (DrainPendingLiveUpdate() && !_liveUpdateTimer.IsEnabled)
+            {
+                _liveUpdateTimer.Start();
+            }
         }
 
-        private void OnTrendPlotLoaded(object sender, RoutedEventArgs e)
+        private void OnLiveUpdateTimerTick(object sender, EventArgs e)
         {
-            RedrawTrendStrip();
+            DrainPendingLiveUpdate();
+        }
+
+        private bool DrainPendingLiveUpdate()
+        {
+            LiveMeasurementSnapshot snapshot;
+            lock (_liveUpdateGate)
+            {
+                snapshot = _pendingLiveSnapshot;
+                _pendingLiveSnapshot = null;
+                if (snapshot == null)
+                {
+                    _liveUpdatePumpActive = false;
+                    _liveUpdateTimer.Stop();
+                    return false;
+                }
+            }
+
+            UpdateLiveValues(snapshot);
+            return true;
         }
 
         private void OnSessionEventRaised(object sender, SessionEventRaisedEventArgs args)
@@ -536,6 +611,7 @@ namespace LaserEnergyMonitor.Wpf
                 state == MeasurementSessionState.Stationary;
             InitializeButton.IsEnabled = !locked;
             SelfTestButton.IsEnabled = !locked;
+            UsbDevicesTestButton.IsEnabled = !locked;
             BeamGageTestButton.IsEnabled = !locked;
             OphirTestButton.IsEnabled = !locked;
             BeamSourceComboBox.IsEnabled = !locked;
@@ -575,14 +651,21 @@ namespace LaserEnergyMonitor.Wpf
             BeamAverageText.Text = FormatDouble(snapshot.FirstAverage);
             OphirAverageText.Text = FormatDouble(snapshot.SecondAverage);
             StabilityText.Text = FormatDouble(snapshot.StabilityMetric);
-            AddTrendPoint(_beamEnergyTrend, snapshot.FirstEnergy);
-            AddTrendPoint(_ophirEnergyTrend, snapshot.SecondEnergy);
-            AddTrendPoint(_stabilityTrend, snapshot.StabilityMetric);
-            RedrawTrendStrip();
         }
 
         private void ResetLiveValues()
         {
+            lock (_liveUpdateGate)
+            {
+                _pendingLiveSnapshot = null;
+                _liveUpdatePumpActive = false;
+            }
+
+            if (_liveUpdateTimer != null)
+            {
+                _liveUpdateTimer.Stop();
+            }
+
             PairIdText.Text = "-";
             LastUpdateText.Text = "-";
             BeamEnergyText.Text = "-";
@@ -592,104 +675,6 @@ namespace LaserEnergyMonitor.Wpf
             StabilityText.Text = "-";
             _stationaryEntries = 0;
             StationaryEntriesText.Text = "0";
-            _beamEnergyTrend.Clear();
-            _ophirEnergyTrend.Clear();
-            _stabilityTrend.Clear();
-            RedrawTrendStrip();
-        }
-
-        private static void AddTrendPoint(List<double> trend, double? value)
-        {
-            if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
-            {
-                return;
-            }
-
-            trend.Add(value.Value);
-            while (trend.Count > TrendPointCapacity)
-            {
-                trend.RemoveAt(0);
-            }
-        }
-
-        private void RedrawTrendStrip()
-        {
-            double width = TrendPlotCanvas.ActualWidth;
-            double height = TrendPlotCanvas.ActualHeight;
-            if (width <= 1.0d || height <= 1.0d)
-            {
-                return;
-            }
-
-            DrawTrendLine(BeamTrendLine, _beamEnergyTrend, width, height);
-            DrawTrendLine(OphirTrendLine, _ophirEnergyTrend, width, height);
-            DrawTrendLine(StabilityTrendLine, _stabilityTrend, width, height);
-            TrendBeamText.Text = BuildTrendLabel("Beam", _beamEnergyTrend);
-            TrendOphirText.Text = BuildTrendLabel("Ophir", _ophirEnergyTrend);
-            TrendStabilityText.Text = BuildTrendLabel("Stability", _stabilityTrend);
-
-            int sampleCount = Math.Max(_beamEnergyTrend.Count, Math.Max(_ophirEnergyTrend.Count, _stabilityTrend.Count));
-            TrendRangeText.Text = sampleCount == 0
-                ? "Waiting for samples"
-                : sampleCount.ToString(CultureInfo.InvariantCulture) + " samples";
-        }
-
-        private static void DrawTrendLine(System.Windows.Shapes.Polyline line, IReadOnlyList<double> values, double width, double height)
-        {
-            PointCollection points = new PointCollection();
-            if (values.Count == 0)
-            {
-                line.Points = points;
-                return;
-            }
-
-            double min = values[0];
-            double max = values[0];
-            for (int i = 1; i < values.Count; i++)
-            {
-                min = Math.Min(min, values[i]);
-                max = Math.Max(max, values[i]);
-            }
-
-            double range = max - min;
-            if (range < 0.000001d)
-            {
-                range = 1.0d;
-                min -= 0.5d;
-            }
-
-            if (values.Count == 1)
-            {
-                double normalizedSingle = (values[0] - min) / range;
-                double singleY = height - (normalizedSingle * (height - 8.0d)) - 4.0d;
-                double centerX = width / 2.0d;
-                points.Add(new Point(Math.Max(0.0d, centerX - 8.0d), singleY));
-                points.Add(new Point(Math.Min(width, centerX + 8.0d), singleY));
-                line.Points = points;
-                return;
-            }
-
-            double step = width / (values.Count - 1);
-            for (int i = 0; i < values.Count; i++)
-            {
-                double normalized = (values[i] - min) / range;
-                double x = i * step;
-                double y = height - (normalized * (height - 8.0d)) - 4.0d;
-                points.Add(new Point(x, y));
-            }
-
-            line.Points = points;
-        }
-
-        private static string BuildTrendLabel(string label, IReadOnlyList<double> values)
-        {
-            if (values.Count == 0)
-            {
-                return label + " --";
-            }
-
-            double latest = values[values.Count - 1];
-            return label + " " + latest.ToString("0.0000", CultureInfo.InvariantCulture);
         }
 
         private void ResetSessionReview()
@@ -713,6 +698,27 @@ namespace LaserEnergyMonitor.Wpf
                 _eventLines.RemoveAt(_eventLines.Count - 1);
             }
 
+            _eventLogDirty = true;
+            if (_eventLogTimer != null && !_eventLogTimer.IsEnabled)
+            {
+                _eventLogTimer.Start();
+            }
+        }
+
+        private void OnEventLogTimerTick(object sender, EventArgs e)
+        {
+            FlushEventLog();
+        }
+
+        private void FlushEventLog()
+        {
+            if (!_eventLogDirty)
+            {
+                _eventLogTimer.Stop();
+                return;
+            }
+
+            _eventLogDirty = false;
             if (EventsTextBox != null)
             {
                 EventsTextBox.Text = string.Join(Environment.NewLine, _eventLines);

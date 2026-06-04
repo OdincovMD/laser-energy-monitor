@@ -39,6 +39,8 @@ namespace LaserEnergyMonitor.Tests
             Assert.Single(desynchronized);
             Assert.Equal(1L, desynchronized[0].Sample.SequenceNumber);
             Assert.Contains("window expired", desynchronized[0].Reason);
+            Assert.Contains("Stale source: Ophir", desynchronized[0].Reason);
+            Assert.Contains("newest other source: BeamGage", desynchronized[0].Reason);
         }
 
         [Fact]

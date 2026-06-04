@@ -20,9 +20,15 @@ namespace LaserEnergyMonitor.Tests
         public void GetPhysicalDataSources_ReturnsOnlyPhysicalSensors()
         {
             string[] dataSources = BeamGageDataSourceSelector.GetPhysicalDataSources(
-                new[] { "BeamMaker", "SP928 #12345", "FileConsole", "SP928 #67890" });
+                new[] { "BeamMaker", "File", "SP928 #12345", "FileConsole", "SP928 #67890" });
 
             Assert.Equal(new[] { "SP928 #12345", "SP928 #67890" }, dataSources);
+        }
+
+        [Fact]
+        public void DefaultOptions_AllowBuiltInSources()
+        {
+            Assert.True(BeamGageMeasurementOptions.Default.AllowBuiltInDataSources);
         }
 
         [Fact]
@@ -30,7 +36,7 @@ namespace LaserEnergyMonitor.Tests
         {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => BeamGageDataSourceSelector.ResolvePhysicalDataSource(
-                    new[] { "BeamMaker", "FileConsole" },
+                    new[] { "BeamMaker", "File", "FileConsole" },
                     null));
 
             Assert.Contains("no physical data sources", exception.Message);
@@ -71,10 +77,10 @@ namespace LaserEnergyMonitor.Tests
         public void GetSelectableDataSources_ReturnsBuiltInSourcesWhenEnabled()
         {
             string[] dataSources = BeamGageDataSourceSelector.GetSelectableDataSources(
-                new[] { "BeamMaker", "SP928 #12345", "FileConsole" },
+                new[] { "BeamMaker", "File", "SP928 #12345", "FileConsole" },
                 true);
 
-            Assert.Equal(new[] { "BeamMaker", "SP928 #12345", "FileConsole" }, dataSources);
+            Assert.Equal(new[] { "BeamMaker", "File", "SP928 #12345", "FileConsole" }, dataSources);
         }
 
         [Fact]
@@ -104,6 +110,13 @@ namespace LaserEnergyMonitor.Tests
             Assert.True(BeamGageDataSourceSelector.ShouldPublishFrame(11L, 10L));
             Assert.False(BeamGageDataSourceSelector.ShouldPublishFrame(10L, 10L));
             Assert.False(BeamGageDataSourceSelector.ShouldPublishFrame(9L, 10L));
+        }
+
+        [Fact]
+        public void ShouldPublishFrame_AllowsDuplicateFrameIdsForBuiltInSources()
+        {
+            Assert.True(BeamGageDataSourceSelector.ShouldPublishFrame(10L, 10L, true));
+            Assert.True(BeamGageDataSourceSelector.ShouldPublishFrame(9L, 10L, true));
         }
     }
 }

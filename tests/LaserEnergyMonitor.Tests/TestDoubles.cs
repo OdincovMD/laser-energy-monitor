@@ -22,6 +22,8 @@ namespace LaserEnergyMonitor.Tests
 
         public bool IsDisposed { get; private set; }
 
+        public Action<ManualMeasurementSource> OnStart { get; set; }
+
         public event EventHandler<MeasurementReceivedEventArgs> MeasurementReceived;
         public event EventHandler<DeviceFaultEventArgs> Faulted;
 
@@ -38,6 +40,10 @@ namespace LaserEnergyMonitor.Tests
             }
 
             IsStarted = true;
+            if (OnStart != null)
+            {
+                OnStart(this);
+            }
         }
 
         public void Stop()

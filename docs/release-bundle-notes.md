@@ -11,7 +11,9 @@
 - библиотеки `LaserEnergyMonitor.*.dll`
 - библиотеки `DocumentFormat.OpenXml*.dll`
 - эта памятка
+- инструкция по первичному запуску `BeamGage`
 - инструкция по первичному запуску `Ophir`
+- техническая памятка по `Ophir Pulsar ActiveX`
 
 ## Что нужно для запуска
 
@@ -62,6 +64,7 @@
 - `measurement-session.Summary.csv`
 - `measurement-session.Stationary.csv`
 - `hardware-self-test-*.txt`
+- `usb-inventory-*.txt`
 - `beamgage-smoke-test-*.txt`
 - `ophir-smoke-test-*.txt`
 - подпапка `ophir-captures` при включенном захвате сырых данных `Ophir`
@@ -77,9 +80,9 @@
 Подтверждено:
 
 - `Debug` и `Release` сборки проходят без ошибок;
-- unit-тесты проходят: `10/10`;
+- unit-тесты проходят: `26/26`;
 - доступны диагностические сценарии:
-  `Self-Test`, `BeamGage Test`, `Ophir Smoke-Test`.
+  `Self-Test`, `USB Devices`, `BeamGage Test`, `Ophir Smoke-Test`.
 
 Не подтверждено без живого стенда:
 
@@ -93,15 +96,26 @@
 
 1. Запуск приложения на целевой машине.
 2. Проверку `Self-Test`.
-3. Проверку `BeamGage Test`, если используется реальный `BeamGage`.
-4. Проверку `Ophir Smoke-Test`, если используется реальный `Ophir`.
-5. Короткую реальную сессию измерения с сохранением результатов.
+3. Проверку `USB Devices`, чтобы сохранить Windows-список USB-устройств.
+4. Проверку `BeamGage Test`, если используется реальный `BeamGage`.
+5. Для `BeamGage` проверить, что оба физических датчика видны в списке источников и каждый может быть выбран через `Connect`.
+6. Проверку `Ophir Smoke-Test`, если используется реальный `Ophir`.
+7. Короткую реальную сессию измерения с сохранением результатов.
+
+## Если планируется работа с реальным BeamGage
+
+Используйте отдельную инструкцию:
+
+- `beamgage-first-run-validation.md`
+
+В ней описано, как проверить список источников BeamGage, выбрать два физических датчика по очереди и какие отчеты вернуть после проверки.
 
 ## Если планируется работа с реальным Ophir
 
 Используйте отдельную инструкцию:
 
 - `ophir-first-run-validation.md`
+- `ophir-pulsar-activex-validation.md`, если используется `Ophir Pulsar ActiveX (legacy)`
 
 В ней описано:
 
@@ -112,6 +126,8 @@
 Для контроллера `Pulsar FU1.27`, который виден в фирменной программе Ophir, но не возвращается через `ScanUSB`, выберите источник `Ophir Pulsar ActiveX (legacy)`.
 
 Если приложение сообщает, что legacy runtime не зарегистрирован, установите x86 ActiveX-контрол `OphirFastX` из согласованного vendor-пакета Ophir.
+
+Если `Ophir Smoke-Test` доходит до `ActiveX activation`, но падает на `OpenUSB`, приложение уже нашло и активировало ActiveX. В таком случае нужно проверить vendor USB runtime, драйвер Pulsar, разрядность `x86` и то, что StarLab или другая программа Ophir не удерживает устройство.
 
 ## Ограничения текущей поставки
 
