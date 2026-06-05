@@ -4,28 +4,33 @@
 
 Проект распространяется по лицензии [MIT](LICENSE).
 
-## Что внутри
+## Что это
 
-- `src/LaserEnergyMonitor.Wpf` — WPF-приложение;
-- `src/LaserEnergyMonitor.Application` — слой оркестрации сценариев;
-- `src/LaserEnergyMonitor.Domain` — доменная модель и алгоритмы;
-- `src/LaserEnergyMonitor.Infrastructure*` — интеграции, экспорт и логирование;
-- `tests/LaserEnergyMonitor.Tests` — unit-тесты;
-- `docs/` — техническая и пользовательская документация;
-- `delivery/` — материалы для комплекта поставки.
+- основная точка входа приложения находится в `src/LaserEnergyMonitor.Wpf`;
+- бизнес-логика и оркестрация сценариев вынесены в `src/LaserEnergyMonitor.Application`;
+- доменная модель и алгоритмы находятся в `src/LaserEnergyMonitor.Domain`;
+- интеграции, экспорт и логирование собраны в `src/LaserEnergyMonitor.Infrastructure*`;
+- unit-тесты лежат в `tests/LaserEnergyMonitor.Tests`.
+
+## Текущий стек
+
+- платформа: `.NET Framework 4.8`;
+- целевая разрядность: `x86`;
+- UI: `WPF`;
+- режимы работы: симуляция, `BeamGage`, `Ophir`.
+
+Подробнее о причинах такого выбора: [Архитектура и стек](docs/architecture-and-stack.md).
 
 ## Быстрый старт
 
 1. Откройте `LaserEnergyMonitor.sln` в Visual Studio 2022 или соберите решение через MSBuild.
 2. Выберите конфигурацию `Release|x86`.
-3. Убедитесь, что установлены зависимости для нужного режима работы:
+3. Проверьте зависимости для нужного режима работы:
    - для симуляции дополнительные runtime от вендора не нужны;
    - для реального `BeamGage` и `Ophir` нужны соответствующие компоненты вендора.
-4. Запустите `LaserEnergyMonitor.Wpf`.
+4. Запустите проект `LaserEnergyMonitor.Wpf`.
 
 ## Сборка
-
-Приложение ориентировано на `.NET Framework 4.8` и `x86`.
 
 Типичный сценарий сборки:
 
@@ -47,3 +52,9 @@ msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
 - [Кодекс поведения](CODE_OF_CONDUCT.md)
 - [Чеклист релиза](RELEASE_CHECKLIST.md)
 - [Список изменений](RELEASE_NOTES.md)
+
+## Полезно перед проверкой стенда
+
+- сначала сверяйте [Статус реализации](docs/implementation-status.md);
+- если готовите выкладку, смотрите [Комплект поставки](docs/release-bundle-notes.md);
+- если меняете состав папок или проектов, обновляйте [Структуру проекта](docs/project-structure.md).
