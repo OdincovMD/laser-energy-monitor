@@ -74,14 +74,6 @@ namespace LaserEnergyMonitor.Wpf
                         : new[] { _runtimeFactory.ConfiguredBeamGageDataSource },
                     _runtimeFactory.ConfiguredBeamGageDataSource);
 
-                PolicyComboBox.ItemsSource = new[]
-                {
-                    new PolicyOption("Fault session", DesynchronizationPolicyAction.FaultSession),
-                    new PolicyOption("Stop gracefully", DesynchronizationPolicyAction.StopGracefully),
-                    new PolicyOption("Log only", DesynchronizationPolicyAction.LogOnly)
-                };
-                PolicyComboBox.SelectedIndex = 2;
-
                 OutputPathTextBox.Text = Path.Combine(_defaultOutputDir, "measurement-session.xlsx");
                 OutputPathTextBox.ToolTip = OutputPathTextBox.Text;
             }
@@ -457,20 +449,11 @@ namespace LaserEnergyMonitor.Wpf
             return new SessionSettings
             {
                 SessionName = SessionNameTextBox.Text,
-                RollingWindowSize = ParseInt(WindowSizeTextBox.Text, 20),
-                EnterThresholdPercent = ParseDouble(EnterThresholdTextBox.Text, 0.5d),
-                ExitThresholdPercent = ParseDouble(ExitThresholdTextBox.Text, 1.0d),
-                SynchronizationDelta = TimeSpan.FromMilliseconds(ParseDouble(SyncDeltaTextBox.Text, 10.0d)),
-                MaxConsecutiveDesynchronizations = ParseInt(DesyncLimitTextBox.Text, 3),
-                DesynchronizationPolicyAction = GetSelectedPolicy(),
+                RollingWindowSize = ParseInt(WindowSizeTextBox.Text, OperatorSessionSettingsPolicy.DefaultRollingWindowSize),
+                EnterThresholdPercent = ParseDouble(EnterThresholdTextBox.Text, OperatorSessionSettingsPolicy.DefaultEnterThresholdPercent),
+                ExitThresholdPercent = ParseDouble(ExitThresholdTextBox.Text, OperatorSessionSettingsPolicy.DefaultExitThresholdPercent),
                 OutputPath = OutputPathTextBox.Text
             };
-        }
-
-        private DesynchronizationPolicyAction GetSelectedPolicy()
-        {
-            PolicyOption option = PolicyComboBox.SelectedItem as PolicyOption;
-            return option != null ? option.Action : DesynchronizationPolicyAction.FaultSession;
         }
 
         private static int ParseInt(string value, int fallback)
@@ -620,9 +603,6 @@ namespace LaserEnergyMonitor.Wpf
             WindowSizeTextBox.IsReadOnly = locked;
             EnterThresholdTextBox.IsReadOnly = locked;
             ExitThresholdTextBox.IsReadOnly = locked;
-            SyncDeltaTextBox.IsReadOnly = locked;
-            DesyncLimitTextBox.IsReadOnly = locked;
-            PolicyComboBox.IsEnabled = !locked;
             OutputPathTextBox.IsReadOnly = locked;
             BrowseButton.IsEnabled = !locked;
             UpdateBeamGagePhysicalControls();
@@ -644,13 +624,13 @@ namespace LaserEnergyMonitor.Wpf
 
         private void UpdateLiveValues(LiveMeasurementSnapshot snapshot)
         {
-            PairIdText.Text = snapshot.PairId.ToString(CultureInfo.InvariantCulture);
+            RecordIdText.Text = snapshot.RecordId.ToString(CultureInfo.InvariantCulture);
             LastUpdateText.Text = snapshot.TimestampUtc.ToLocalTime().ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
             BeamEnergyText.Text = FormatDouble(snapshot.FirstEnergy);
             OphirEnergyText.Text = FormatDouble(snapshot.SecondEnergy);
             BeamAverageText.Text = FormatDouble(snapshot.FirstAverage);
             OphirAverageText.Text = FormatDouble(snapshot.SecondAverage);
-            StabilityText.Text = FormatDouble(snapshot.StabilityMetric);
+            StabilityText.Text = FormatStability(snapshot);
         }
 
         private void ResetLiveValues()
@@ -666,7 +646,7 @@ namespace LaserEnergyMonitor.Wpf
                 _liveUpdateTimer.Stop();
             }
 
-            PairIdText.Text = "-";
+            RecordIdText.Text = "-";
             LastUpdateText.Text = "-";
             BeamEnergyText.Text = "-";
             OphirEnergyText.Text = "-";
@@ -679,7 +659,7 @@ namespace LaserEnergyMonitor.Wpf
 
         private void ResetSessionReview()
         {
-            SummaryPairsText.Text = "0";
+            SummarySamplesText.Text = "0";
             SummaryEventsCountText.Text = "0";
             SummarySegmentsText.Text = "0";
             SummaryFaultsText.Text = "0";
@@ -688,6 +668,23 @@ namespace LaserEnergyMonitor.Wpf
         private static string FormatDouble(double? value)
         {
             return value.HasValue ? value.Value.ToString("0.0000", CultureInfo.InvariantCulture) : "-";
+        }
+
+        private static string FormatStability(LiveMeasurementSnapshot snapshot)
+        {
+            if (snapshot == null || !snapshot.StabilityMetric.HasValue)
+            {
+                return "-";
+            }
+
+            if (!snapshot.FirstStabilityMetric.HasValue || !snapshot.SecondStabilityMetric.HasValue)
+            {
+                return FormatDouble(snapshot.StabilityMetric);
+            }
+
+            return FormatDouble(snapshot.StabilityMetric) +
+                " B " + FormatDouble(snapshot.FirstStabilityMetric) +
+                " O " + FormatDouble(snapshot.SecondStabilityMetric);
         }
 
         private void AddEvent(string message)
@@ -749,7 +746,7 @@ namespace LaserEnergyMonitor.Wpf
                 return;
             }
 
-            SummaryPairsText.Text = summary.PairCount.ToString(CultureInfo.InvariantCulture);
+            SummarySamplesText.Text = summary.SampleCount.ToString(CultureInfo.InvariantCulture);
             SummaryEventsCountText.Text = summary.EventCount.ToString(CultureInfo.InvariantCulture);
             SummarySegmentsText.Text = summary.ClosedStationarySegmentCount.ToString(CultureInfo.InvariantCulture);
             SummaryFaultsText.Text = summary.FaultCount.ToString(CultureInfo.InvariantCulture);
@@ -820,22 +817,5 @@ namespace LaserEnergyMonitor.Wpf
                 step.Details);
         }
 
-        private sealed class PolicyOption
-        {
-            public PolicyOption(string name, DesynchronizationPolicyAction action)
-            {
-                Name = name;
-                Action = action;
-            }
-
-            public string Name { get; private set; }
-
-            public DesynchronizationPolicyAction Action { get; private set; }
-
-            public override string ToString()
-            {
-                return Name;
-            }
-        }
     }
 }

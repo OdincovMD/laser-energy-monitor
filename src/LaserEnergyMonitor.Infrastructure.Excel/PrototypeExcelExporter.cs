@@ -39,20 +39,24 @@ namespace LaserEnergyMonitor.Infrastructure.Excel
             _summaryWriter = new StreamWriter(_basePath + ".Summary.csv", false);
             _stationaryWriter = new StreamWriter(_basePath + ".Stationary.csv", false);
 
-            _rawWriter.WriteLine("PairId,TimestampUtc,FirstSourceId,FirstSequence,FirstEnergy,SecondSourceId,SecondSequence,SecondEnergy,DeltaMs,FirstAverage,SecondAverage,StabilityMetric,IsStationary");
+            _rawWriter.WriteLine("RecordId,TimestampUtc,SourceId,Sequence,Energy,SourceSlot,FirstAverage,SecondAverage,FirstStabilityMetricPercent,SecondStabilityMetricPercent,StabilityMetric,FirstIsStationary,SecondIsStationary,IsStationary");
             _eventsWriter.WriteLine("TimestampUtc,EventType,ReasonCode,SequenceNumber,MetricValue,Message");
             _summaryWriter.WriteLine("Key,Value");
-            _stationaryWriter.WriteLine("SegmentId,EntryPairId,EntryTimestampUtc,EntryFirstEnergy,EntrySecondEnergy,EntryFirstAverage,EntrySecondAverage,EntryStabilityMetric,ExitPairId,ExitTimestampUtc,ExitStabilityMetric,DurationMs,ExitReason");
+            _stationaryWriter.WriteLine("SegmentId,EntryRecordId,EntryTimestampUtc,EntryFirstEnergy,EntrySecondEnergy,EntryFirstAverage,EntrySecondAverage,EntryStabilityMetric,ExitRecordId,ExitTimestampUtc,ExitStabilityMetric,DurationMs,ExitReason");
             _summaryWriter.WriteLine("PrototypeExporter,CSV shadow files are written until Open XML integration is connected.");
             _summaryWriter.WriteLine("SessionName," + Escape(metadata != null ? metadata.SessionName : "Measurement Session"));
             _summaryWriter.WriteLine("StartedUtc," + (metadata != null ? metadata.StartedUtc.ToString("u") : string.Empty));
-            _summaryWriter.WriteLine("DesynchronizationPolicyAction," + Escape(settings != null ? settings.DesynchronizationPolicyAction.ToString() : string.Empty));
-            _summaryWriter.WriteLine("MaxConsecutiveDesynchronizations," + (settings != null ? settings.MaxConsecutiveDesynchronizations.ToString(CultureInfo.InvariantCulture) : string.Empty));
         }
 
-        public void WriteMeasurement(SynchronizedMeasurementPair pair, StationarityUpdate update)
+        public void WriteMeasurement(MeasurementRecord record, StationarityUpdate update)
         {
             if (_rawWriter == null)
+            {
+                return;
+            }
+
+            MeasurementSample sample = record != null ? record.Sample : null;
+            if (sample == null)
             {
                 return;
             }
@@ -60,18 +64,19 @@ namespace LaserEnergyMonitor.Infrastructure.Excel
             _rawWriter.WriteLine(
                 string.Join(
                     ",",
-                    pair.PairId.ToString(CultureInfo.InvariantCulture),
-                    pair.FirstSample.TimestampUtc.ToString("u"),
-                    Escape(pair.FirstSample.SourceId),
-                    pair.FirstSample.SequenceNumber.ToString(CultureInfo.InvariantCulture),
-                    pair.FirstSample.Energy.ToString("G17", CultureInfo.InvariantCulture),
-                    Escape(pair.SecondSample.SourceId),
-                    pair.SecondSample.SequenceNumber.ToString(CultureInfo.InvariantCulture),
-                    pair.SecondSample.Energy.ToString("G17", CultureInfo.InvariantCulture),
-                    pair.Delta.TotalMilliseconds.ToString("G17", CultureInfo.InvariantCulture),
+                    record.RecordId.ToString(CultureInfo.InvariantCulture),
+                    sample.TimestampUtc.ToString("u"),
+                    Escape(sample.SourceId),
+                    sample.SequenceNumber.ToString(CultureInfo.InvariantCulture),
+                    sample.Energy.ToString("G17", CultureInfo.InvariantCulture),
+                    Escape(record.IsFirstSource ? "First" : record.IsSecondSource ? "Second" : "Unknown"),
                     update.RollingAverageFirst.ToString("G17", CultureInfo.InvariantCulture),
                     update.RollingAverageSecond.ToString("G17", CultureInfo.InvariantCulture),
+                    update.FirstStabilityMetric.ToString("G17", CultureInfo.InvariantCulture),
+                    update.SecondStabilityMetric.ToString("G17", CultureInfo.InvariantCulture),
                     update.StabilityMetric.ToString("G17", CultureInfo.InvariantCulture),
+                    update.IsFirstSourceStationary ? "1" : "0",
+                    update.IsSecondSourceStationary ? "1" : "0",
                     update.IsStationary ? "1" : "0"));
         }
 
@@ -104,14 +109,14 @@ namespace LaserEnergyMonitor.Infrastructure.Excel
                 string.Join(
                     ",",
                     segment.SegmentId.ToString(CultureInfo.InvariantCulture),
-                    segment.EntryPairId.ToString(CultureInfo.InvariantCulture),
+                    segment.EntryRecordId.ToString(CultureInfo.InvariantCulture),
                     segment.EntryTimestampUtc.ToString("u"),
                     segment.EntryFirstEnergy.ToString("G17", CultureInfo.InvariantCulture),
                     segment.EntrySecondEnergy.ToString("G17", CultureInfo.InvariantCulture),
                     segment.EntryFirstAverage.ToString("G17", CultureInfo.InvariantCulture),
                     segment.EntrySecondAverage.ToString("G17", CultureInfo.InvariantCulture),
                     segment.EntryStabilityMetric.ToString("G17", CultureInfo.InvariantCulture),
-                    segment.ExitPairId.HasValue ? segment.ExitPairId.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
+                    segment.ExitRecordId.HasValue ? segment.ExitRecordId.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
                     segment.ExitTimestampUtc.HasValue ? segment.ExitTimestampUtc.Value.ToString("u") : string.Empty,
                     segment.ExitStabilityMetric.HasValue ? segment.ExitStabilityMetric.Value.ToString("G17", CultureInfo.InvariantCulture) : string.Empty,
                     segment.DurationMs.HasValue ? segment.DurationMs.Value.ToString("G17", CultureInfo.InvariantCulture) : string.Empty,
@@ -123,13 +128,11 @@ namespace LaserEnergyMonitor.Infrastructure.Excel
             if (_summaryWriter != null && summary != null)
             {
                 _summaryWriter.WriteLine("FinishedUtc," + summary.FinishedUtc.ToString("u"));
-                _summaryWriter.WriteLine("PairCount," + summary.PairCount.ToString(CultureInfo.InvariantCulture));
+                _summaryWriter.WriteLine("SampleCount," + summary.SampleCount.ToString(CultureInfo.InvariantCulture));
                 _summaryWriter.WriteLine("EventCount," + summary.EventCount.ToString(CultureInfo.InvariantCulture));
-                _summaryWriter.WriteLine("DesynchronizationCount," + summary.DesynchronizationCount.ToString(CultureInfo.InvariantCulture));
                 _summaryWriter.WriteLine("FaultCount," + summary.FaultCount.ToString(CultureInfo.InvariantCulture));
                 _summaryWriter.WriteLine("StationarySegmentCount," + summary.StationarySegmentCount.ToString(CultureInfo.InvariantCulture));
                 _summaryWriter.WriteLine("ClosedStationarySegmentCount," + summary.ClosedStationarySegmentCount.ToString(CultureInfo.InvariantCulture));
-                _summaryWriter.WriteLine("LastDesynchronizationUtc," + (summary.LastDesynchronizationUtc.HasValue ? summary.LastDesynchronizationUtc.Value.ToString("u") : string.Empty));
                 _summaryWriter.WriteLine("LastFaultUtc," + (summary.LastFaultUtc.HasValue ? summary.LastFaultUtc.Value.ToString("u") : string.Empty));
                 _summaryWriter.WriteLine("CompletedNormally," + (summary.CompletedNormally ? "1" : "0"));
                 _summaryWriter.WriteLine("FinalState," + Escape(summary.FinalState));
@@ -148,13 +151,11 @@ namespace LaserEnergyMonitor.Infrastructure.Excel
                 if (summary != null)
                 {
                     _summaryWriter.WriteLine("FinishedUtc," + summary.FinishedUtc.ToString("u"));
-                    _summaryWriter.WriteLine("PairCount," + summary.PairCount.ToString(CultureInfo.InvariantCulture));
+                    _summaryWriter.WriteLine("SampleCount," + summary.SampleCount.ToString(CultureInfo.InvariantCulture));
                     _summaryWriter.WriteLine("EventCount," + summary.EventCount.ToString(CultureInfo.InvariantCulture));
-                    _summaryWriter.WriteLine("DesynchronizationCount," + summary.DesynchronizationCount.ToString(CultureInfo.InvariantCulture));
                     _summaryWriter.WriteLine("FaultCount," + summary.FaultCount.ToString(CultureInfo.InvariantCulture));
                     _summaryWriter.WriteLine("StationarySegmentCount," + summary.StationarySegmentCount.ToString(CultureInfo.InvariantCulture));
                     _summaryWriter.WriteLine("ClosedStationarySegmentCount," + summary.ClosedStationarySegmentCount.ToString(CultureInfo.InvariantCulture));
-                    _summaryWriter.WriteLine("LastDesynchronizationUtc," + (summary.LastDesynchronizationUtc.HasValue ? summary.LastDesynchronizationUtc.Value.ToString("u") : string.Empty));
                     _summaryWriter.WriteLine("LastFaultUtc," + (summary.LastFaultUtc.HasValue ? summary.LastFaultUtc.Value.ToString("u") : string.Empty));
                     _summaryWriter.WriteLine("CompletedNormally," + (summary.CompletedNormally ? "1" : "0"));
                     _summaryWriter.WriteLine("FinalState," + Escape(summary.FinalState));

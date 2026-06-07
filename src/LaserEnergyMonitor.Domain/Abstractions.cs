@@ -16,27 +16,17 @@ namespace LaserEnergyMonitor.Domain
         void Stop();
     }
 
-    public interface IMeasurementSynchronizer
-    {
-        event EventHandler<SynchronizedMeasurementPairEventArgs> PairReady;
-        event EventHandler<DesynchronizationEventArgs> Desynchronized;
-
-        void Configure(TimeSpan maxDelta, string firstSourceId, string secondSourceId);
-        void Push(MeasurementSample sample);
-        void Reset();
-    }
-
     public interface IStationarityDetector
     {
-        void Configure(SessionSettings settings);
-        StationarityUpdate Evaluate(SynchronizedMeasurementPair pair);
+        void Configure(SessionSettings settings, string firstSourceId, string secondSourceId);
+        StationarityUpdate Evaluate(MeasurementSample sample);
         void Reset();
     }
 
     public interface IMeasurementExporter : IDisposable
     {
         void StartSession(SessionMetadata metadata, SessionSettings settings);
-        void WriteMeasurement(SynchronizedMeasurementPair pair, StationarityUpdate update);
+        void WriteMeasurement(MeasurementRecord record, StationarityUpdate update);
         void WriteEvent(SessionEvent sessionEvent);
         void WriteStationarySegment(StationarySegmentResult segment);
         void Complete(SessionSummary summary);
@@ -80,29 +70,6 @@ namespace LaserEnergyMonitor.Domain
         }
 
         public DeviceFault Fault { get; private set; }
-    }
-
-    public sealed class SynchronizedMeasurementPairEventArgs : EventArgs
-    {
-        public SynchronizedMeasurementPairEventArgs(SynchronizedMeasurementPair pair)
-        {
-            Pair = pair;
-        }
-
-        public SynchronizedMeasurementPair Pair { get; private set; }
-    }
-
-    public sealed class DesynchronizationEventArgs : EventArgs
-    {
-        public DesynchronizationEventArgs(MeasurementSample sample, string reason)
-        {
-            Sample = sample;
-            Reason = reason;
-        }
-
-        public MeasurementSample Sample { get; private set; }
-
-        public string Reason { get; private set; }
     }
 
     public sealed class SessionStateChangedEventArgs : EventArgs

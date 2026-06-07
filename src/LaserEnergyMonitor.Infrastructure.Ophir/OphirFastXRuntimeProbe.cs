@@ -77,13 +77,24 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 details.AppendLine("API family: legacy OphirFastX ActiveX for Pulsar devices");
                 details.AppendLine("Required methods: OpenUSB, GetNumberOfDevices, GetDeviceHandle, IsChannelExists, StartCS2, GetData, StopCS, CloseUSB");
 
-                OphirFastXRuntimeSession.OpenUsb(comObject);
+                int openUsbWarning = OphirFastXRuntimeSession.OpenUsb(comObject);
                 usbOpened = true;
+                string openUsbDetails = "OpenUSB completed.";
+                if (openUsbWarning != 0)
+                {
+                    openUsbDetails += " Warning code: " +
+                        openUsbWarning.ToString(CultureInfo.InvariantCulture) +
+                        "; vendor message: " +
+                        OphirFastXRuntimeSession.TryGetErrorMessage(comObject, openUsbWarning);
+                }
+
+                details.Append("OpenUSB warning code: ");
+                details.AppendLine(openUsbWarning.ToString(CultureInfo.InvariantCulture));
                 steps.Add(new MeasurementSourceRuntimeProbeStep
                 {
                     Name = "USB open",
                     Status = "PASS",
-                    Details = "OpenUSB completed."
+                    Details = openUsbDetails
                 });
 
                 List<OphirFastXRuntimeSession.DeviceDescriptor> devices = OphirFastXRuntimeSession.GetDevices(comObject);

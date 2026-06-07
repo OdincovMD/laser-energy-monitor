@@ -209,10 +209,11 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             }
         }
 
-        internal static void OpenUsb(object comObject)
+        internal static int OpenUsb(object comObject)
         {
             object[] args = { 0 };
             EnsureSuccess(comObject, "OpenUSB", args);
+            return Convert.ToInt32(args[0], CultureInfo.InvariantCulture);
         }
 
         internal static List<DeviceDescriptor> GetDevices(object comObject)
@@ -300,6 +301,20 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         {
             try
             {
+                ParameterModifier[] modifiers = CreateParameterModifiers(methodName, args == null ? 0 : args.Length);
+                if (modifiers != null)
+                {
+                    return comObject.GetType().InvokeMember(
+                        methodName,
+                        BindingFlags.InvokeMethod,
+                        null,
+                        comObject,
+                        args,
+                        modifiers,
+                        CultureInfo.InvariantCulture,
+                        null);
+                }
+
                 return comObject.GetType().InvokeMember(
                     methodName,
                     BindingFlags.InvokeMethod,
@@ -316,6 +331,57 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             {
                 throw CreateInvocationException(methodName, ex);
             }
+        }
+
+        private static ParameterModifier[] CreateParameterModifiers(string methodName, int parameterCount)
+        {
+            if (parameterCount <= 0)
+            {
+                return null;
+            }
+
+            ParameterModifier modifier = new ParameterModifier(parameterCount);
+            bool hasByRefParameter = false;
+
+            if (string.Equals(methodName, "OpenUSB", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(methodName, "GetNumberOfDevices", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(methodName, "GetData", StringComparison.OrdinalIgnoreCase))
+            {
+                modifier[0] = true;
+                hasByRefParameter = true;
+            }
+            else if (string.Equals(methodName, "GetDeviceHandle", StringComparison.OrdinalIgnoreCase) &&
+                parameterCount > 1)
+            {
+                modifier[1] = true;
+                hasByRefParameter = true;
+            }
+            else if (string.Equals(methodName, "GetDeviceInfo", StringComparison.OrdinalIgnoreCase) &&
+                parameterCount > 2)
+            {
+                modifier[1] = true;
+                modifier[2] = true;
+                hasByRefParameter = true;
+            }
+            else if (string.Equals(methodName, "IsChannelExists", StringComparison.OrdinalIgnoreCase) &&
+                parameterCount > 2)
+            {
+                modifier[2] = true;
+                hasByRefParameter = true;
+            }
+            else if (string.Equals(methodName, "GetErrorFromCode", StringComparison.OrdinalIgnoreCase) &&
+                parameterCount > 1)
+            {
+                modifier[1] = true;
+                hasByRefParameter = true;
+            }
+
+            if (!hasByRefParameter)
+            {
+                return null;
+            }
+
+            return new[] { modifier };
         }
 
         internal static void TryInvoke(object comObject, string methodName, params object[] args)
@@ -388,7 +454,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             throw new InvalidOperationException("OphirFastX opened the Pulsar device, but no active sensor heads were found.");
         }
 
-        private static string TryGetErrorMessage(object comObject, int errorCode)
+        internal static string TryGetErrorMessage(object comObject, int errorCode)
         {
             try
             {

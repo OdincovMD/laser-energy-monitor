@@ -53,7 +53,7 @@ laser-energy-monitor/
 Содержит:
 
 - `MeasurementSessionService`
-- `SessionSettingsValidator`
+- `OperatorSessionSettingsPolicy`
 
 ### `LaserEnergyMonitor.Domain`
 
@@ -65,7 +65,7 @@ laser-energy-monitor/
 - модели samples, session events, summaries
 - `RollingWindow`
 - `RollingStationarityDetector`
-- `TimeWindowMeasurementSynchronizer`
+- `RollingStationarityDetector`
 
 ### `LaserEnergyMonitor.Infrastructure`
 

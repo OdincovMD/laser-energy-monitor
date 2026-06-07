@@ -12,12 +12,12 @@ namespace LaserEnergyMonitor.Domain
         public double Energy { get; set; }
     }
 
-    public sealed class SynchronizedMeasurementPair
+    public sealed class MeasurementRecord
     {
-        public long PairId { get; set; }
-        public MeasurementSample FirstSample { get; set; }
-        public MeasurementSample SecondSample { get; set; }
-        public TimeSpan Delta { get; set; }
+        public long RecordId { get; set; }
+        public MeasurementSample Sample { get; set; }
+        public bool IsFirstSource { get; set; }
+        public bool IsSecondSource { get; set; }
     }
 
     public sealed class StationarityUpdate
@@ -28,7 +28,15 @@ namespace LaserEnergyMonitor.Domain
         public bool ExitedStationaryState { get; set; }
         public double RollingAverageFirst { get; set; }
         public double RollingAverageSecond { get; set; }
+        public double FirstStabilityMetric { get; set; }
+        public double SecondStabilityMetric { get; set; }
         public double StabilityMetric { get; set; }
+        public bool IsFirstSourceStationary { get; set; }
+        public bool IsSecondSourceStationary { get; set; }
+        public bool FirstSourceEnteredStationaryState { get; set; }
+        public bool SecondSourceEnteredStationaryState { get; set; }
+        public bool FirstSourceExitedStationaryState { get; set; }
+        public bool SecondSourceExitedStationaryState { get; set; }
     }
 
     public sealed class SessionSettings
@@ -36,9 +44,6 @@ namespace LaserEnergyMonitor.Domain
         public int RollingWindowSize { get; set; }
         public double EnterThresholdPercent { get; set; }
         public double ExitThresholdPercent { get; set; }
-        public TimeSpan SynchronizationDelta { get; set; }
-        public int MaxConsecutiveDesynchronizations { get; set; }
-        public DesynchronizationPolicyAction DesynchronizationPolicyAction { get; set; }
         public string OutputPath { get; set; }
         public string SessionName { get; set; }
     }
@@ -55,13 +60,11 @@ namespace LaserEnergyMonitor.Domain
     {
         public DateTime StartedUtc { get; set; }
         public DateTime FinishedUtc { get; set; }
-        public int PairCount { get; set; }
+        public int SampleCount { get; set; }
         public int EventCount { get; set; }
-        public int DesynchronizationCount { get; set; }
         public int FaultCount { get; set; }
         public int StationarySegmentCount { get; set; }
         public int ClosedStationarySegmentCount { get; set; }
-        public DateTime? LastDesynchronizationUtc { get; set; }
         public DateTime? LastFaultUtc { get; set; }
         public bool CompletedNormally { get; set; }
         public string FinalState { get; set; }
@@ -72,14 +75,14 @@ namespace LaserEnergyMonitor.Domain
     public sealed class StationarySegmentResult
     {
         public int SegmentId { get; set; }
-        public long EntryPairId { get; set; }
+        public long EntryRecordId { get; set; }
         public DateTime EntryTimestampUtc { get; set; }
         public double EntryFirstEnergy { get; set; }
         public double EntrySecondEnergy { get; set; }
         public double EntryFirstAverage { get; set; }
         public double EntrySecondAverage { get; set; }
         public double EntryStabilityMetric { get; set; }
-        public long? ExitPairId { get; set; }
+        public long? ExitRecordId { get; set; }
         public DateTime? ExitTimestampUtc { get; set; }
         public double? ExitStabilityMetric { get; set; }
         public double? DurationMs { get; set; }
@@ -109,12 +112,16 @@ namespace LaserEnergyMonitor.Domain
     public sealed class LiveMeasurementSnapshot
     {
         public MeasurementSessionState SessionState { get; set; }
-        public long PairId { get; set; }
+        public long RecordId { get; set; }
         public double? FirstEnergy { get; set; }
         public double? SecondEnergy { get; set; }
         public double? FirstAverage { get; set; }
         public double? SecondAverage { get; set; }
+        public double? FirstStabilityMetric { get; set; }
+        public double? SecondStabilityMetric { get; set; }
         public double? StabilityMetric { get; set; }
+        public bool IsFirstSourceStationary { get; set; }
+        public bool IsSecondSourceStationary { get; set; }
         public bool IsStationary { get; set; }
         public DateTime TimestampUtc { get; set; }
     }
@@ -149,7 +156,6 @@ namespace LaserEnergyMonitor.Domain
         Info = 0,
         StationaryEntered = 1,
         StationaryExited = 2,
-        Desynchronized = 3,
         Fault = 4,
         SessionStarted = 5,
         SessionStopped = 6
@@ -161,10 +167,4 @@ namespace LaserEnergyMonitor.Domain
         Critical = 1
     }
 
-    public enum DesynchronizationPolicyAction
-    {
-        LogOnly = 0,
-        StopGracefully = 1,
-        FaultSession = 2
-    }
 }

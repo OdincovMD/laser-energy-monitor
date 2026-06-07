@@ -18,7 +18,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
         public int OpenUSB(ref int reserved)
         {
             _usbOpen = true;
-            reserved = 1;
+            reserved = 0;
             return 0;
         }
 

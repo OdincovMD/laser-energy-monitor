@@ -45,27 +45,6 @@ namespace LaserEnergyMonitor.Application
                     "settings");
             }
 
-            if (settings.SynchronizationDelta <= TimeSpan.Zero)
-            {
-                throw new ArgumentOutOfRangeException(
-                    "settings",
-                    "Synchronization delta must be greater than zero.");
-            }
-
-            if (settings.MaxConsecutiveDesynchronizations < 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    "settings",
-                    "Maximum consecutive desynchronizations must be greater than or equal to zero.");
-            }
-
-            if (!Enum.IsDefined(typeof(DesynchronizationPolicyAction), settings.DesynchronizationPolicyAction))
-            {
-                throw new ArgumentOutOfRangeException(
-                    "settings",
-                    "Desynchronization policy action must be a supported value.");
-            }
-
             string normalizedOutputPath = NormalizeOutputPath(settings.OutputPath);
 
             return new SessionSettings
@@ -74,9 +53,6 @@ namespace LaserEnergyMonitor.Application
                 RollingWindowSize = settings.RollingWindowSize,
                 EnterThresholdPercent = settings.EnterThresholdPercent,
                 ExitThresholdPercent = settings.ExitThresholdPercent,
-                SynchronizationDelta = settings.SynchronizationDelta,
-                MaxConsecutiveDesynchronizations = settings.MaxConsecutiveDesynchronizations,
-                DesynchronizationPolicyAction = settings.DesynchronizationPolicyAction,
                 OutputPath = normalizedOutputPath
             };
         }

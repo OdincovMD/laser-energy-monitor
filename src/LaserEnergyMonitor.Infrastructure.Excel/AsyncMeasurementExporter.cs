@@ -43,9 +43,9 @@ namespace LaserEnergyMonitor.Infrastructure.Excel
             }
         }
 
-        public void WriteMeasurement(SynchronizedMeasurementPair pair, StationarityUpdate update)
+        public void WriteMeasurement(MeasurementRecord record, StationarityUpdate update)
         {
-            Enqueue(delegate { _inner.WriteMeasurement(pair, update); });
+            Enqueue(delegate { _inner.WriteMeasurement(record, update); });
         }
 
         public void WriteEvent(SessionEvent sessionEvent)

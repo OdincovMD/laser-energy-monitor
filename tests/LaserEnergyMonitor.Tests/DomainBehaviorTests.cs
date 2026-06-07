@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using LaserEnergyMonitor.Domain;
 using Xunit;
 
@@ -7,42 +6,6 @@ namespace LaserEnergyMonitor.Tests
 {
     public sealed class DomainBehaviorTests
     {
-        [Fact]
-        public void TimeWindowMeasurementSynchronizer_MatchesClosestSampleAndExpiresStaleSample()
-        {
-            TimeWindowMeasurementSynchronizer synchronizer = new TimeWindowMeasurementSynchronizer();
-            synchronizer.Configure(TimeSpan.FromMilliseconds(10), "BeamGage", "Ophir");
-
-            List<SynchronizedMeasurementPair> pairs = new List<SynchronizedMeasurementPair>();
-            List<DesynchronizationEventArgs> desynchronized = new List<DesynchronizationEventArgs>();
-            synchronizer.PairReady += delegate(object sender, SynchronizedMeasurementPairEventArgs args)
-            {
-                pairs.Add(args.Pair);
-            };
-            synchronizer.Desynchronized += delegate(object sender, DesynchronizationEventArgs args)
-            {
-                desynchronized.Add(args);
-            };
-
-            DateTime t0 = new DateTime(2026, 5, 24, 9, 0, 0, DateTimeKind.Utc);
-
-            synchronizer.Push(CreateSample("Ophir", 1L, t0.AddMilliseconds(9), 20d));
-            synchronizer.Push(CreateSample("Ophir", 2L, t0.AddMilliseconds(3), 21d));
-            synchronizer.Push(CreateSample("BeamGage", 10L, t0, 10d));
-            synchronizer.Push(CreateSample("BeamGage", 11L, t0.AddMilliseconds(30), 11d));
-
-            Assert.Single(pairs);
-            Assert.Equal(10L, pairs[0].FirstSample.SequenceNumber);
-            Assert.Equal(2L, pairs[0].SecondSample.SequenceNumber);
-            Assert.Equal(TimeSpan.FromMilliseconds(3), pairs[0].Delta);
-
-            Assert.Single(desynchronized);
-            Assert.Equal(1L, desynchronized[0].Sample.SequenceNumber);
-            Assert.Contains("window expired", desynchronized[0].Reason);
-            Assert.Contains("Stale source: Ophir", desynchronized[0].Reason);
-            Assert.Contains("newest other source: BeamGage", desynchronized[0].Reason);
-        }
-
         [Fact]
         public void RollingStationarityDetector_EntersAndExitsStationaryState_WhenMetricCrossesThresholds()
         {
@@ -53,16 +16,21 @@ namespace LaserEnergyMonitor.Tests
                     RollingWindowSize = 2,
                     EnterThresholdPercent = 1d,
                     ExitThresholdPercent = 5d,
-                    SynchronizationDelta = TimeSpan.FromMilliseconds(10),
                     SessionName = "Detector test"
-                });
+                },
+                "BeamGage",
+                "Ophir");
 
             DateTime t0 = new DateTime(2026, 5, 24, 9, 0, 0, DateTimeKind.Utc);
 
-            StationarityUpdate first = detector.Evaluate(CreatePair(1L, t0, 100d, 200d));
-            StationarityUpdate second = detector.Evaluate(CreatePair(2L, t0.AddMilliseconds(10), 100d, 200d));
-            StationarityUpdate third = detector.Evaluate(CreatePair(3L, t0.AddMilliseconds(20), 100d, 200d));
-            StationarityUpdate fourth = detector.Evaluate(CreatePair(4L, t0.AddMilliseconds(30), 120d, 240d));
+            StationarityUpdate first = detector.Evaluate(CreateSample("BeamGage", 1L, t0, 100d));
+            detector.Evaluate(CreateSample("Ophir", 1L, t0.AddMilliseconds(1), 200d));
+            detector.Evaluate(CreateSample("BeamGage", 2L, t0.AddMilliseconds(10), 100d));
+            StationarityUpdate second = detector.Evaluate(CreateSample("Ophir", 2L, t0.AddMilliseconds(11), 200d));
+            detector.Evaluate(CreateSample("BeamGage", 3L, t0.AddMilliseconds(20), 100d));
+            StationarityUpdate third = detector.Evaluate(CreateSample("Ophir", 3L, t0.AddMilliseconds(21), 200d));
+            StationarityUpdate fourth = detector.Evaluate(CreateSample("BeamGage", 4L, t0.AddMilliseconds(30), 120d));
+            detector.Evaluate(CreateSample("Ophir", 4L, t0.AddMilliseconds(31), 240d));
 
             Assert.False(first.HasEnoughData);
             Assert.True(second.HasEnoughData);
@@ -70,11 +38,62 @@ namespace LaserEnergyMonitor.Tests
 
             Assert.True(third.EnteredStationaryState);
             Assert.True(third.IsStationary);
+            Assert.True(third.IsFirstSourceStationary);
+            Assert.True(third.IsSecondSourceStationary);
             Assert.Equal(0d, third.StabilityMetric, 6);
+            Assert.Equal(0d, third.FirstStabilityMetric, 6);
+            Assert.Equal(0d, third.SecondStabilityMetric, 6);
 
             Assert.True(fourth.ExitedStationaryState);
             Assert.False(fourth.IsStationary);
             Assert.True(fourth.StabilityMetric > 5d);
+        }
+
+        [Fact]
+        public void RollingStationarityDetector_TracksEachSourceStabilizingIndependently()
+        {
+            RollingStationarityDetector detector = new RollingStationarityDetector();
+            detector.Configure(
+                new SessionSettings
+                {
+                    RollingWindowSize = 2,
+                    EnterThresholdPercent = 1d,
+                    ExitThresholdPercent = 5d,
+                    SessionName = "Independent warm-up test"
+                },
+                "BeamGage",
+                "Ophir");
+
+            DateTime t0 = new DateTime(2026, 5, 24, 9, 0, 0, DateTimeKind.Utc);
+
+            detector.Evaluate(CreateSample("BeamGage", 1L, t0, 100d));
+            detector.Evaluate(CreateSample("BeamGage", 2L, t0.AddMilliseconds(10), 100d));
+            StationarityUpdate third = detector.Evaluate(CreateSample("BeamGage", 3L, t0.AddMilliseconds(20), 100d));
+
+            detector.Evaluate(CreateSample("Ophir", 1L, t0.AddMilliseconds(1), 100d));
+            StationarityUpdate fourth = detector.Evaluate(CreateSample("Ophir", 2L, t0.AddMilliseconds(11), 200d));
+            detector.Evaluate(CreateSample("Ophir", 3L, t0.AddMilliseconds(21), 300d));
+            detector.Evaluate(CreateSample("Ophir", 4L, t0.AddMilliseconds(31), 300d));
+            StationarityUpdate fifth = detector.Evaluate(CreateSample("Ophir", 5L, t0.AddMilliseconds(41), 300d));
+
+            Assert.True(third.FirstSourceEnteredStationaryState);
+            Assert.True(third.IsFirstSourceStationary);
+            Assert.False(third.IsSecondSourceStationary);
+            Assert.False(third.IsStationary);
+            Assert.False(third.EnteredStationaryState);
+            Assert.Equal(0d, third.FirstStabilityMetric, 6);
+            Assert.Equal(0d, third.SecondStabilityMetric, 6);
+
+            Assert.False(fourth.IsStationary);
+            Assert.True(fourth.IsFirstSourceStationary);
+            Assert.False(fourth.IsSecondSourceStationary);
+
+            Assert.True(fifth.SecondSourceEnteredStationaryState);
+            Assert.True(fifth.IsFirstSourceStationary);
+            Assert.True(fifth.IsSecondSourceStationary);
+            Assert.True(fifth.EnteredStationaryState);
+            Assert.True(fifth.IsStationary);
+            Assert.Equal(fifth.SecondStabilityMetric, fifth.StabilityMetric, 6);
         }
 
         private static MeasurementSample CreateSample(string sourceId, long sequenceNumber, DateTime timestampUtc, double energy)
@@ -86,17 +105,6 @@ namespace LaserEnergyMonitor.Tests
                 TimestampUtc = timestampUtc,
                 MonotonicTicks = timestampUtc.Ticks,
                 Energy = energy
-            };
-        }
-
-        private static SynchronizedMeasurementPair CreatePair(long pairId, DateTime timestampUtc, double firstEnergy, double secondEnergy)
-        {
-            return new SynchronizedMeasurementPair
-            {
-                PairId = pairId,
-                FirstSample = CreateSample("BeamGage", pairId, timestampUtc, firstEnergy),
-                SecondSample = CreateSample("Ophir", pairId, timestampUtc.AddMilliseconds(1), secondEnergy),
-                Delta = TimeSpan.FromMilliseconds(1)
             };
         }
     }

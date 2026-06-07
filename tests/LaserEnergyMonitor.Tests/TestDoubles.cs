@@ -93,7 +93,7 @@ namespace LaserEnergyMonitor.Tests
 
         public SessionSettings StartedSettings { get; private set; }
 
-        public List<SynchronizedMeasurementPair> Measurements { get; } = new List<SynchronizedMeasurementPair>();
+        public List<MeasurementRecord> Measurements { get; } = new List<MeasurementRecord>();
 
         public List<StationarityUpdate> Updates { get; } = new List<StationarityUpdate>();
 
@@ -115,9 +115,9 @@ namespace LaserEnergyMonitor.Tests
             StartedSettings = settings;
         }
 
-        public void WriteMeasurement(SynchronizedMeasurementPair pair, StationarityUpdate update)
+        public void WriteMeasurement(MeasurementRecord record, StationarityUpdate update)
         {
-            Measurements.Add(pair);
+            Measurements.Add(record);
             Updates.Add(update);
         }
 

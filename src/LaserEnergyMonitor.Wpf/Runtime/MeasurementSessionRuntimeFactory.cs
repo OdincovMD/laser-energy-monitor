@@ -159,7 +159,6 @@ namespace LaserEnergyMonitor.Wpf
             return new MeasurementSessionService(
                 firstOption.CreateSource(),
                 secondOption.CreateSource(),
-                new TimeWindowMeasurementSynchronizer(),
                 new RollingStationarityDetector(),
                 new AsyncMeasurementExporter(new PrototypeExcelExporter()),
                 new AsyncApplicationLogger(new FileApplicationLogger(_logPath)),

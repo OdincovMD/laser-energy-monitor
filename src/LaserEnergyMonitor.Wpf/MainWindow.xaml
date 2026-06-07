@@ -110,21 +110,8 @@
                         <TextBlock Text="Session" Style="{StaticResource SetupFieldLabel}" />
                         <TextBox x:Name="SessionNameTextBox" Text="Prototype Session" />
 
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Window" Style="{StaticResource SetupFieldLabel}" />
-                                <TextBox x:Name="WindowSizeTextBox" Text="20" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Sync ms" Style="{StaticResource SetupFieldLabel}" />
-                                <TextBox x:Name="SyncDeltaTextBox" Text="1000" />
-                            </StackPanel>
-                        </Grid>
+                        <TextBlock Text="Window" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,0" />
+                        <TextBox x:Name="WindowSizeTextBox" Text="20" />
 
                         <Grid Margin="0,8,0,0">
                             <Grid.ColumnDefinitions>
@@ -139,22 +126,6 @@
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Exit %" Style="{StaticResource SetupFieldLabel}" />
                                 <TextBox x:Name="ExitThresholdTextBox" Text="1.0" />
-                            </StackPanel>
-                        </Grid>
-
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Desync limit" Style="{StaticResource SetupFieldLabel}" />
-                                <TextBox x:Name="DesyncLimitTextBox" Text="0" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Policy" Style="{StaticResource SetupFieldLabel}" />
-                                <ComboBox x:Name="PolicyComboBox" DisplayMemberPath="Name" SelectedValuePath="Action" />
                             </StackPanel>
                         </Grid>
 
@@ -221,7 +192,7 @@
                     </Grid.RowDefinitions>
                     <StackPanel>
                         <TextBlock Text="Live Measurements" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Text="Paired values and current status"
+                        <TextBlock Text="Independent source warm-up and current status"
                                    Style="{StaticResource SectionCaption}" />
                     </StackPanel>
 
@@ -264,8 +235,8 @@
                         </Border>
                         <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="10,8">
                             <StackPanel>
-                                <TextBlock Text="Pair ID" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="PairIdText" Text="-" Style="{StaticResource LiveSecondaryMetricValue}" />
+                                <TextBlock Text="Record ID" Style="{StaticResource FieldLabel}" />
+                                <TextBlock x:Name="RecordIdText" Text="-" Style="{StaticResource LiveSecondaryMetricValue}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="10,8">
@@ -416,8 +387,8 @@
                     <UniformGrid Grid.Row="2" Columns="2" Rows="2">
                         <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="8">
                             <StackPanel>
-                                <TextBlock Text="Pairs" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="SummaryPairsText" Text="0" Style="{StaticResource CompactMetricValue}" />
+                                <TextBlock Text="Samples" Style="{StaticResource FieldLabel}" />
+                                <TextBlock x:Name="SummarySamplesText" Text="0" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="8">

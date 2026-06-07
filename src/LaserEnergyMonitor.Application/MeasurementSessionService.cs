@@ -7,7 +7,6 @@ namespace LaserEnergyMonitor.Application
     {
         private readonly IMeasurementSource _firstSource;
         private readonly IMeasurementSource _secondSource;
-        private readonly IMeasurementSynchronizer _synchronizer;
         private readonly IStationarityDetector _detector;
         private readonly IMeasurementExporter _exporter;
         private readonly IApplicationLogger _logger;
@@ -16,19 +15,18 @@ namespace LaserEnergyMonitor.Application
 
         private MeasurementSessionState _state;
         private SessionMetadata _metadata;
-        private int _pairCount;
+        private int _sampleCount;
         private int _eventCount;
-        private int _desynchronizationCount;
-        private int _consecutiveDesynchronizationCount;
         private int _faultCount;
         private int _stationarySegmentCount;
         private int _closedStationarySegmentCount;
-        private DateTime? _lastDesynchronizationUtc;
         private DateTime? _lastFaultUtc;
         private SessionSettings _currentSettings;
         private StationarySegmentResult _activeStationarySegment;
-        private SynchronizedMeasurementPair _lastPair;
+        private MeasurementRecord _lastRecord;
         private StationarityUpdate _lastUpdate;
+        private double? _lastFirstEnergy;
+        private double? _lastSecondEnergy;
         private string _terminationReasonCode;
         private string _terminationReason;
         private bool _sessionStarted;
@@ -39,7 +37,6 @@ namespace LaserEnergyMonitor.Application
         public MeasurementSessionService(
             IMeasurementSource firstSource,
             IMeasurementSource secondSource,
-            IMeasurementSynchronizer synchronizer,
             IStationarityDetector detector,
             IMeasurementExporter exporter,
             IApplicationLogger logger,
@@ -48,7 +45,6 @@ namespace LaserEnergyMonitor.Application
         {
             _firstSource = firstSource ?? throw new ArgumentNullException("firstSource");
             _secondSource = secondSource ?? throw new ArgumentNullException("secondSource");
-            _synchronizer = synchronizer ?? throw new ArgumentNullException("synchronizer");
             _detector = detector ?? throw new ArgumentNullException("detector");
             _exporter = exporter ?? throw new ArgumentNullException("exporter");
             _logger = logger ?? throw new ArgumentNullException("logger");
@@ -61,8 +57,6 @@ namespace LaserEnergyMonitor.Application
             _secondSource.MeasurementReceived += OnMeasurementReceived;
             _firstSource.Faulted += OnFaulted;
             _secondSource.Faulted += OnFaulted;
-            _synchronizer.PairReady += OnPairReady;
-            _synchronizer.Desynchronized += OnDesynchronized;
         }
 
         public event EventHandler<SessionStateChangedEventArgs> StateChanged;
@@ -92,8 +86,7 @@ namespace LaserEnergyMonitor.Application
             _firstSource.Initialize();
             _secondSource.Initialize();
             EnsureSourcesReady("initialize");
-            _synchronizer.Configure(validatedSettings.SynchronizationDelta, _firstSource.SourceId, _secondSource.SourceId);
-            _detector.Configure(validatedSettings);
+            _detector.Configure(validatedSettings, _firstSource.SourceId, _secondSource.SourceId);
 
             _currentSettings = validatedSettings;
             TransitionTo(MeasurementSessionState.Initialized);
@@ -196,8 +189,6 @@ namespace LaserEnergyMonitor.Application
                 _secondSource.MeasurementReceived -= OnMeasurementReceived;
                 _firstSource.Faulted -= OnFaulted;
                 _secondSource.Faulted -= OnFaulted;
-                _synchronizer.PairReady -= OnPairReady;
-                _synchronizer.Desynchronized -= OnDesynchronized;
 
                 _exporter.Dispose();
                 IDisposable disposableLogger = _logger as IDisposable;
@@ -222,15 +213,15 @@ namespace LaserEnergyMonitor.Application
 
             try
             {
-                _synchronizer.Push(e.Sample);
+                ProcessMeasurement(e.Sample);
             }
             catch (Exception ex)
             {
-                HandlePipelineException("Synchronization pipeline failed.", e != null ? e.Sample : null, ex);
+                HandlePipelineException("Measurement processing failed.", e != null ? e.Sample : null, ex);
             }
         }
 
-        private void OnPairReady(object sender, SynchronizedMeasurementPairEventArgs e)
+        private void ProcessMeasurement(MeasurementSample sample)
         {
             if (!IsAcceptingMeasurements())
             {
@@ -239,23 +230,41 @@ namespace LaserEnergyMonitor.Application
 
             try
             {
-                StationarityUpdate update = _detector.Evaluate(e.Pair);
-                _lastPair = e.Pair;
+                _sampleCount += 1;
+                bool isFirstSource = string.Equals(sample.SourceId, _firstSource.SourceId, StringComparison.OrdinalIgnoreCase);
+                bool isSecondSource = string.Equals(sample.SourceId, _secondSource.SourceId, StringComparison.OrdinalIgnoreCase);
+                MeasurementRecord record = new MeasurementRecord
+                {
+                    RecordId = _sampleCount,
+                    Sample = sample,
+                    IsFirstSource = isFirstSource,
+                    IsSecondSource = isSecondSource
+                };
+
+                if (isFirstSource)
+                {
+                    _lastFirstEnergy = sample.Energy;
+                }
+                else if (isSecondSource)
+                {
+                    _lastSecondEnergy = sample.Energy;
+                }
+
+                StationarityUpdate update = _detector.Evaluate(sample);
+                _lastRecord = record;
                 _lastUpdate = update;
-                _consecutiveDesynchronizationCount = 0;
-                _pairCount += 1;
-                _exporter.WriteMeasurement(e.Pair, update);
+                _exporter.WriteMeasurement(record, update);
 
                 if (update.EnteredStationaryState)
                 {
-                    OpenStationarySegment(e.Pair, update);
-                    RaiseEvent(SessionEventType.StationaryEntered, "Stationary mode detected.", e.Pair.PairId, update.StabilityMetric, "stationary-entered");
+                    OpenStationarySegment(record, update);
+                    RaiseEvent(SessionEventType.StationaryEntered, "Stationary mode detected.", record.RecordId, update.StabilityMetric, "stationary-entered");
                     TransitionTo(MeasurementSessionState.Stationary);
                 }
                 else if (update.ExitedStationaryState)
                 {
-                    CloseActiveStationarySegment(e.Pair, update, "Stationary mode lost.");
-                    RaiseEvent(SessionEventType.StationaryExited, "Stationary mode lost.", e.Pair.PairId, update.StabilityMetric, "stationary-exited");
+                    CloseActiveStationarySegment(record, update, "Stationary mode lost.");
+                    RaiseEvent(SessionEventType.StationaryExited, "Stationary mode lost.", record.RecordId, update.StabilityMetric, "stationary-exited");
                     TransitionTo(MeasurementSessionState.Measuring);
                 }
 
@@ -265,40 +274,23 @@ namespace LaserEnergyMonitor.Application
                         new LiveMeasurementSnapshot
                         {
                             SessionState = _state,
-                            PairId = e.Pair.PairId,
-                            FirstEnergy = e.Pair.FirstSample.Energy,
-                            SecondEnergy = e.Pair.SecondSample.Energy,
+                            RecordId = record.RecordId,
+                            FirstEnergy = _lastFirstEnergy,
+                            SecondEnergy = _lastSecondEnergy,
                             FirstAverage = update.RollingAverageFirst,
                             SecondAverage = update.RollingAverageSecond,
+                            FirstStabilityMetric = update.FirstStabilityMetric,
+                            SecondStabilityMetric = update.SecondStabilityMetric,
                             StabilityMetric = update.StabilityMetric,
+                            IsFirstSourceStationary = update.IsFirstSourceStationary,
+                            IsSecondSourceStationary = update.IsSecondSourceStationary,
                             IsStationary = update.IsStationary,
                             TimestampUtc = _clock.UtcNow
                         }));
             }
             catch (Exception ex)
             {
-                HandlePipelineException("Measurement processing failed.", e != null ? e.Pair != null ? e.Pair.FirstSample : null : null, ex);
-            }
-        }
-
-        private void OnDesynchronized(object sender, DesynchronizationEventArgs e)
-        {
-            if (!IsAcceptingMeasurements())
-            {
-                return;
-            }
-
-            try
-            {
-                _desynchronizationCount += 1;
-                _consecutiveDesynchronizationCount += 1;
-                _lastDesynchronizationUtc = _clock.UtcNow;
-                RaiseEvent(SessionEventType.Desynchronized, "Desynchronization detected: " + e.Reason, e.Sample.SequenceNumber, null, "sample-unmatched");
-                EnforceDesynchronizationPolicyIfNeeded();
-            }
-            catch (Exception ex)
-            {
-                HandlePipelineException("Desynchronization handling failed.", e != null ? e.Sample : null, ex);
+                HandlePipelineException("Measurement processing failed.", sample, ex);
             }
         }
 
@@ -446,22 +438,20 @@ namespace LaserEnergyMonitor.Application
 
         private void ResetProcessingBuffers()
         {
-            _pairCount = 0;
+            _sampleCount = 0;
             _eventCount = 0;
-            _desynchronizationCount = 0;
-            _consecutiveDesynchronizationCount = 0;
             _faultCount = 0;
             _stationarySegmentCount = 0;
             _closedStationarySegmentCount = 0;
             _metadata = null;
-            _lastDesynchronizationUtc = null;
             _lastFaultUtc = null;
             _activeStationarySegment = null;
-            _lastPair = null;
+            _lastRecord = null;
             _lastUpdate = null;
+            _lastFirstEnergy = null;
+            _lastSecondEnergy = null;
             _terminationReasonCode = null;
             _terminationReason = null;
-            _synchronizer.Reset();
             _detector.Reset();
         }
 
@@ -577,13 +567,11 @@ namespace LaserEnergyMonitor.Application
             {
                 StartedUtc = _metadata != null ? _metadata.StartedUtc : _clock.UtcNow,
                 FinishedUtc = _clock.UtcNow,
-                PairCount = _pairCount,
+                SampleCount = _sampleCount,
                 EventCount = _eventCount,
-                DesynchronizationCount = _desynchronizationCount,
                 FaultCount = _faultCount,
                 StationarySegmentCount = _stationarySegmentCount,
                 ClosedStationarySegmentCount = _closedStationarySegmentCount,
-                LastDesynchronizationUtc = _lastDesynchronizationUtc,
                 LastFaultUtc = _lastFaultUtc,
                 CompletedNormally = completedNormally,
                 FinalState = finalState,
@@ -592,56 +580,9 @@ namespace LaserEnergyMonitor.Application
             };
         }
 
-        private void EnforceDesynchronizationPolicyIfNeeded()
+        private void OpenStationarySegment(MeasurementRecord record, StationarityUpdate update)
         {
-            int threshold = _currentSettings != null ? _currentSettings.MaxConsecutiveDesynchronizations : 0;
-            if (threshold <= 0 || _consecutiveDesynchronizationCount < threshold)
-            {
-                return;
-            }
-
-            string message = string.Format(
-                "Desynchronization threshold reached: {0} consecutive unmatched samples.",
-                _consecutiveDesynchronizationCount);
-            DesynchronizationPolicyAction action = _currentSettings != null
-                ? _currentSettings.DesynchronizationPolicyAction
-                : DesynchronizationPolicyAction.LogOnly;
-
-            if (action == DesynchronizationPolicyAction.LogOnly)
-            {
-                return;
-            }
-
-            if (action == DesynchronizationPolicyAction.StopGracefully)
-            {
-                StopSourcesSafely();
-                string stopMessage = message + " The session will stop gracefully.";
-                RaiseEvent(
-                    SessionEventType.SessionStopped,
-                    stopMessage,
-                    null,
-                    _consecutiveDesynchronizationCount,
-                    "desynchronization-threshold-graceful-stop");
-                CompleteSession(false, MeasurementSessionState.Completed.ToString(), "desynchronization-threshold-graceful-stop", stopMessage);
-                return;
-            }
-
-            OnFaulted(
-                this,
-                new DeviceFaultEventArgs(
-                    new DeviceFault
-                    {
-                        SourceId = "Synchronizer",
-                        Severity = FaultSeverity.Critical,
-                        ReasonCode = "desynchronization-threshold-fault",
-                        Message = message + " The session will be faulted.",
-                        TimestampUtc = _clock.UtcNow
-                    }));
-        }
-
-        private void OpenStationarySegment(SynchronizedMeasurementPair pair, StationarityUpdate update)
-        {
-            if (pair == null || update == null)
+            if (record == null || record.Sample == null || update == null)
             {
                 return;
             }
@@ -655,12 +596,10 @@ namespace LaserEnergyMonitor.Application
             _activeStationarySegment = new StationarySegmentResult
             {
                 SegmentId = _stationarySegmentCount,
-                EntryPairId = pair.PairId,
-                EntryTimestampUtc = pair.FirstSample.TimestampUtc >= pair.SecondSample.TimestampUtc
-                    ? pair.FirstSample.TimestampUtc
-                    : pair.SecondSample.TimestampUtc,
-                EntryFirstEnergy = pair.FirstSample.Energy,
-                EntrySecondEnergy = pair.SecondSample.Energy,
+                EntryRecordId = record.RecordId,
+                EntryTimestampUtc = record.Sample.TimestampUtc,
+                EntryFirstEnergy = _lastFirstEnergy.GetValueOrDefault(),
+                EntrySecondEnergy = _lastSecondEnergy.GetValueOrDefault(),
                 EntryFirstAverage = update.RollingAverageFirst,
                 EntrySecondAverage = update.RollingAverageSecond,
                 EntryStabilityMetric = update.StabilityMetric
@@ -668,7 +607,7 @@ namespace LaserEnergyMonitor.Application
         }
 
         private void CloseActiveStationarySegment(
-            SynchronizedMeasurementPair pair,
+            MeasurementRecord record,
             StationarityUpdate update,
             string exitReason)
         {
@@ -677,12 +616,10 @@ namespace LaserEnergyMonitor.Application
                 return;
             }
 
-            if (pair != null)
+            if (record != null && record.Sample != null)
             {
-                _activeStationarySegment.ExitPairId = pair.PairId;
-                _activeStationarySegment.ExitTimestampUtc = pair.FirstSample.TimestampUtc >= pair.SecondSample.TimestampUtc
-                    ? pair.FirstSample.TimestampUtc
-                    : pair.SecondSample.TimestampUtc;
+                _activeStationarySegment.ExitRecordId = record.RecordId;
+                _activeStationarySegment.ExitTimestampUtc = record.Sample.TimestampUtc;
             }
             else
             {
@@ -711,7 +648,7 @@ namespace LaserEnergyMonitor.Application
 
         private void FinalizeActiveStationarySegment(string exitReason)
         {
-            CloseActiveStationarySegment(_lastPair, _lastUpdate, exitReason);
+            CloseActiveStationarySegment(_lastRecord, _lastUpdate, exitReason);
         }
 
         private static StationarySegmentResult CloneStationarySegment(StationarySegmentResult segment)
@@ -724,14 +661,14 @@ namespace LaserEnergyMonitor.Application
             return new StationarySegmentResult
             {
                 SegmentId = segment.SegmentId,
-                EntryPairId = segment.EntryPairId,
+                EntryRecordId = segment.EntryRecordId,
                 EntryTimestampUtc = segment.EntryTimestampUtc,
                 EntryFirstEnergy = segment.EntryFirstEnergy,
                 EntrySecondEnergy = segment.EntrySecondEnergy,
                 EntryFirstAverage = segment.EntryFirstAverage,
                 EntrySecondAverage = segment.EntrySecondAverage,
                 EntryStabilityMetric = segment.EntryStabilityMetric,
-                ExitPairId = segment.ExitPairId,
+                ExitRecordId = segment.ExitRecordId,
                 ExitTimestampUtc = segment.ExitTimestampUtc,
                 ExitStabilityMetric = segment.ExitStabilityMetric,
                 DurationMs = segment.DurationMs,

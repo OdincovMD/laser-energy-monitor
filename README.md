@@ -1,6 +1,6 @@
 # Laser Energy Monitor
 
-`Laser Energy Monitor` — настольное приложение для сбора, синхронизации и экспорта результатов измерений с поддержкой симуляции и интеграций с оборудованием `BeamGage` и `Ophir`.
+`Laser Energy Monitor` — настольное приложение для сбора, независимой оценки стабильности и экспорта результатов измерений с поддержкой симуляции и интеграций с оборудованием `BeamGage` и `Ophir`.
 
 Проект распространяется по лицензии [MIT](LICENSE).
 
@@ -44,6 +44,9 @@ msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
 - [Архитектура и стек](docs/architecture-and-stack.md)
 - [Статус реализации](docs/implementation-status.md)
 - [Комплект поставки](docs/release-bundle-notes.md)
+- [Приемочная проверка у заказчика](docs/customer-acceptance-checklist.md)
+- [Алгоритм проверки BeamGage у заказчика](docs/customer-beamgage-test-algorithm.md)
+- [Алгоритм проверки Ophir Pulsar у заказчика](docs/customer-pulsar-test-algorithm.md)
 - [Первичная проверка BeamGage](docs/beamgage-first-run-validation.md)
 - [Первичная проверка Ophir](docs/ophir-first-run-validation.md)
 - [Ophir Pulsar ActiveX validation](docs/ophir-pulsar-activex-validation.md)
@@ -57,4 +60,5 @@ msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
 
 - сначала сверяйте [Статус реализации](docs/implementation-status.md);
 - если готовите выкладку, смотрите [Комплект поставки](docs/release-bundle-notes.md);
+- для приемочной сессии прогрева используйте операторский режим `Window=20`, `Enter %=0.5`, `Exit %=1.0`;
 - если меняете состав папок или проектов, обновляйте [Структуру проекта](docs/project-structure.md).
