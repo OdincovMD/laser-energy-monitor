@@ -22,6 +22,11 @@ namespace LaserEnergyMonitor.Wpf
 
         public static string BuildReport(DateTime generatedLocalTime)
         {
+            return BuildReport(generatedLocalTime, true);
+        }
+
+        public static string BuildReport(DateTime generatedLocalTime, bool includeAllDevices)
+        {
             StringBuilder builder = new StringBuilder();
             builder.Append("USB inventory generated at ");
             builder.AppendLine(generatedLocalTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
@@ -69,9 +74,17 @@ namespace LaserEnergyMonitor.Wpf
             builder.AppendLine("Likely Ophir / Pulsar / driver matches:");
             AppendDevices(builder, interesting);
 
-            builder.AppendLine();
-            builder.AppendLine("All USB / USBSTOR devices:");
-            AppendDevices(builder, devices);
+            if (includeAllDevices)
+            {
+                builder.AppendLine();
+                builder.AppendLine("All USB / USBSTOR devices:");
+                AppendDevices(builder, devices);
+            }
+            else
+            {
+                builder.AppendLine();
+                builder.AppendLine("All USB / USBSTOR devices: omitted from this embedded summary; run USB Devices for the full inventory.");
+            }
 
             if (wmiException != null)
             {

@@ -385,6 +385,13 @@ namespace LaserEnergyMonitor.Wpf
                 builder.AppendLine(executionException.Message);
             }
 
+            if (ShouldEmbedUsbInventory(selectedOption, probe, executionException, noUsbDevicesDetected))
+            {
+                builder.AppendLine();
+                builder.AppendLine("Windows USB inventory summary:");
+                builder.AppendLine(UsbDeviceInventory.BuildReport(_clock.UtcNow.ToLocalTime(), false));
+            }
+
             string report = builder.ToString().Trim();
             new FileApplicationLogger(_logPath).Info("Ophir smoke-test completed." + Environment.NewLine + report);
             WriteSmokeTestReport(report, "ophir-smoke-test");
@@ -852,7 +859,25 @@ namespace LaserEnergyMonitor.Wpf
             Directory.CreateDirectory(logDirectory);
             string fileName = filePrefix + "-" + _clock.UtcNow.ToLocalTime().ToString("yyyyMMdd-HHmmss") + ".txt";
             string reportPath = Path.Combine(logDirectory, fileName);
-            File.WriteAllText(reportPath, report);
+            File.WriteAllText(reportPath, report, Encoding.UTF8);
+        }
+
+        private static bool ShouldEmbedUsbInventory(
+            MeasurementSourceOption selectedOption,
+            MeasurementSourceRuntimeProbeResult probe,
+            Exception executionException,
+            bool noUsbDevicesDetected)
+        {
+            bool selectedOphirHardware =
+                selectedOption != null &&
+                !string.Equals(selectedOption.Key, "ophir-sim", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(selectedOption.Key, OphirFastXSimulationSourceKey, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(selectedOption.Key, "ophir-replay", StringComparison.OrdinalIgnoreCase);
+
+            return selectedOphirHardware &&
+                (noUsbDevicesDetected ||
+                executionException != null ||
+                (probe != null && !probe.DependencyAvailable));
         }
 
         private static OphirMeasurementOptions LoadOphirOptions(string logPath)

@@ -1,10 +1,15 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Collections.Generic;
 using LaserEnergyMonitor.Domain;
+#if NETFRAMEWORK
+using Microsoft.Win32;
+#endif
 
 namespace LaserEnergyMonitor.Infrastructure.Ophir
 {
@@ -62,7 +67,9 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 details.Append("COM type: ");
                 details.Append(runtimeType.FullName);
                 details.AppendLine();
+                AppendRuntimeVersion(comObject, details);
                 AppendDriverVersion(comObject, details);
+                steps.Add(BuildComPackageStep(runtimeType, details));
                 details.Append("Required methods: ");
                 details.Append(DescribeMethodAvailability(runtimeType));
                 details.AppendLine();
@@ -240,6 +247,215 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             }
         }
 
+        private static void AppendRuntimeVersion(object comObject, StringBuilder details)
+        {
+            try
+            {
+                object[] args = { null };
+                Invoke(comObject, "GetVersion", args);
+                string version = Convert.ToString(args[0], CultureInfo.InvariantCulture);
+                if (!string.IsNullOrWhiteSpace(version))
+                {
+                    details.Append("Runtime version: ");
+                    details.Append(version);
+                    details.AppendLine();
+                }
+            }
+            catch
+            {
+                details.AppendLine("Runtime version: unavailable through GetVersion.");
+            }
+        }
+
+        private static MeasurementSourceRuntimeProbeStep BuildComPackageStep(Type runtimeType, StringBuilder details)
+        {
+            ComPackageDiagnostic diagnostic = InspectComPackage(runtimeType);
+            AppendComPackageDiagnostic(details, diagnostic);
+
+            return new MeasurementSourceRuntimeProbeStep
+            {
+                Name = "COM package",
+                Status = diagnostic.HasWarning ? "WARN" : "INFO",
+                Details = diagnostic.StepDetails
+            };
+        }
+
+        private static void AppendComPackageDiagnostic(StringBuilder details, ComPackageDiagnostic diagnostic)
+        {
+            details.Append("COM CLSID: ");
+            details.AppendLine(string.IsNullOrWhiteSpace(diagnostic.Clsid) ? "unavailable" : diagnostic.Clsid);
+            details.Append("COM DLL path: ");
+            details.AppendLine(string.IsNullOrWhiteSpace(diagnostic.DllPath) ? "unavailable" : diagnostic.DllPath);
+            details.Append("COM DLL exists: ");
+            details.AppendLine(diagnostic.DllExists.HasValue ? FormatBool(diagnostic.DllExists.Value) : "unknown");
+            if (!string.IsNullOrWhiteSpace(diagnostic.FileVersion))
+            {
+                details.Append("COM DLL file version: ");
+                details.AppendLine(diagnostic.FileVersion);
+            }
+
+            details.Append("Pulsar firmware directory: ");
+            details.AppendLine(string.IsNullOrWhiteSpace(diagnostic.FirmwareDirectoryPath) ? "unavailable" : diagnostic.FirmwareDirectoryPath);
+            details.Append("Pulsar firmware directory exists: ");
+            details.AppendLine(diagnostic.FirmwareDirectoryExists.HasValue ? FormatBool(diagnostic.FirmwareDirectoryExists.Value) : "unknown");
+            AppendFirmwarePattern(details, diagnostic, "FU4A*.hex");
+            AppendFirmwarePattern(details, diagnostic, "FU4B*.hex");
+            AppendFirmwarePattern(details, diagnostic, "FU4F*.ttf");
+            if (!string.IsNullOrWhiteSpace(diagnostic.Notes))
+            {
+                details.Append("COM package notes: ");
+                details.AppendLine(diagnostic.Notes);
+            }
+        }
+
+        private static void AppendFirmwarePattern(StringBuilder details, ComPackageDiagnostic diagnostic, string pattern)
+        {
+            string[] matches;
+            if (!diagnostic.FirmwareFilesByPattern.TryGetValue(pattern, out matches))
+            {
+                details.Append("Pulsar firmware ");
+                details.Append(pattern);
+                details.AppendLine(": unknown");
+                return;
+            }
+
+            details.Append("Pulsar firmware ");
+            details.Append(pattern);
+            details.Append(": ");
+            details.AppendLine(matches.Length == 0 ? "missing" : string.Join(", ", matches));
+        }
+
+        private static ComPackageDiagnostic InspectComPackage(Type runtimeType)
+        {
+            ComPackageDiagnostic diagnostic = new ComPackageDiagnostic();
+            diagnostic.FirmwareFilesByPattern = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                diagnostic.Clsid = ResolveComClsid(runtimeType);
+                diagnostic.DllPath = ResolveInprocServerPath(diagnostic.Clsid);
+                if (string.IsNullOrWhiteSpace(diagnostic.DllPath))
+                {
+                    diagnostic.HasWarning = true;
+                    diagnostic.StepDetails = "COM DLL path could not be resolved from registry.";
+                    return diagnostic;
+                }
+
+                diagnostic.DllExists = File.Exists(diagnostic.DllPath);
+                if (diagnostic.DllExists.Value)
+                {
+                    FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(diagnostic.DllPath);
+                    diagnostic.FileVersion = !string.IsNullOrWhiteSpace(versionInfo.FileVersion)
+                        ? versionInfo.FileVersion
+                        : versionInfo.ProductVersion;
+                }
+                else
+                {
+                    diagnostic.HasWarning = true;
+                }
+
+                string directory = Path.GetDirectoryName(diagnostic.DllPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    diagnostic.FirmwareDirectoryPath = Path.Combine(directory, "firmware");
+                    diagnostic.FirmwareDirectoryExists = Directory.Exists(diagnostic.FirmwareDirectoryPath);
+                    InspectFirmwareFiles(diagnostic, "FU4A*.hex");
+                    InspectFirmwareFiles(diagnostic, "FU4B*.hex");
+                    InspectFirmwareFiles(diagnostic, "FU4F*.ttf");
+                }
+
+                diagnostic.StepDetails = BuildComPackageStepDetails(diagnostic);
+                return diagnostic;
+            }
+            catch (Exception ex)
+            {
+                diagnostic.HasWarning = true;
+                diagnostic.Notes = ex.Message;
+                diagnostic.StepDetails = "COM package diagnostic failed: " + ex.Message;
+                return diagnostic;
+            }
+        }
+
+        private static void InspectFirmwareFiles(ComPackageDiagnostic diagnostic, string pattern)
+        {
+            if (diagnostic.FirmwareDirectoryExists != true)
+            {
+                diagnostic.FirmwareFilesByPattern[pattern] = new string[0];
+                diagnostic.HasWarning = true;
+                return;
+            }
+
+            string[] paths = Directory.GetFiles(diagnostic.FirmwareDirectoryPath, pattern);
+            string[] names = new string[paths.Length];
+            for (int i = 0; i < paths.Length; i++)
+            {
+                names[i] = Path.GetFileName(paths[i]);
+            }
+
+            Array.Sort(names, StringComparer.OrdinalIgnoreCase);
+            diagnostic.FirmwareFilesByPattern[pattern] = names;
+            if (names.Length == 0)
+            {
+                diagnostic.HasWarning = true;
+            }
+        }
+
+        private static string BuildComPackageStepDetails(ComPackageDiagnostic diagnostic)
+        {
+            if (diagnostic.HasWarning)
+            {
+                return "COM package resolved, but Pulsar firmware/runtime files may be missing or incomplete.";
+            }
+
+            return "COM DLL and expected Pulsar firmware files were found.";
+        }
+
+        private static string ResolveComClsid(Type runtimeType)
+        {
+#if NETFRAMEWORK
+            using (RegistryKey key = Registry.ClassesRoot.OpenSubKey(ProgId + "\\CLSID"))
+            {
+                object value = key != null ? key.GetValue(null) : null;
+                string clsid = value as string;
+                if (!string.IsNullOrWhiteSpace(clsid))
+                {
+                    return clsid.Trim();
+                }
+            }
+#endif
+
+            Guid guid = runtimeType != null ? runtimeType.GUID : Guid.Empty;
+            return guid == Guid.Empty ? string.Empty : "{" + guid.ToString("D") + "}";
+        }
+
+        private static string ResolveInprocServerPath(string clsid)
+        {
+            if (string.IsNullOrWhiteSpace(clsid))
+            {
+                return string.Empty;
+            }
+
+#if NETFRAMEWORK
+            string keyPath = "CLSID\\" + clsid.Trim() + "\\InprocServer32";
+            using (RegistryKey key = Registry.ClassesRoot.OpenSubKey(keyPath))
+            {
+                object value = key != null ? key.GetValue(null) : null;
+                string path = value as string;
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    return Environment.ExpandEnvironmentVariables(path.Trim('"'));
+                }
+            }
+#endif
+
+            return string.Empty;
+        }
+
+        private static string FormatBool(bool value)
+        {
+            return value ? "yes" : "no";
+        }
+
         private static bool IsSensorExists(object comObject, int handle, int channel)
         {
             object[] args = { handle, channel, null };
@@ -371,6 +587,29 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
             }
 
             return builder.ToString();
+        }
+
+        private sealed class ComPackageDiagnostic
+        {
+            public string Clsid { get; set; }
+
+            public string DllPath { get; set; }
+
+            public bool? DllExists { get; set; }
+
+            public string FileVersion { get; set; }
+
+            public string FirmwareDirectoryPath { get; set; }
+
+            public bool? FirmwareDirectoryExists { get; set; }
+
+            public Dictionary<string, string[]> FirmwareFilesByPattern { get; set; }
+
+            public bool HasWarning { get; set; }
+
+            public string StepDetails { get; set; }
+
+            public string Notes { get; set; }
         }
     }
 }

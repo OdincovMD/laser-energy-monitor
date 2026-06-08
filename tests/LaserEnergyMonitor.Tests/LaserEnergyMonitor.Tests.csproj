@@ -18,6 +18,7 @@
     <ProjectReference Include="..\..\src\LaserEnergyMonitor.Application\LaserEnergyMonitor.Application.csproj" />
     <ProjectReference Include="..\..\src\LaserEnergyMonitor.Domain\LaserEnergyMonitor.Domain.csproj" />
     <ProjectReference Include="..\..\src\LaserEnergyMonitor.Infrastructure.BeamGage\LaserEnergyMonitor.Infrastructure.BeamGage.csproj" />
+    <ProjectReference Include="..\..\src\LaserEnergyMonitor.Infrastructure.Logging\LaserEnergyMonitor.Infrastructure.Logging.csproj" />
     <ProjectReference Include="..\..\src\LaserEnergyMonitor.Infrastructure.Ophir\LaserEnergyMonitor.Infrastructure.Ophir.csproj" SetTargetFramework="TargetFramework=netstandard2.0" />
   </ItemGroup>
 </Project>

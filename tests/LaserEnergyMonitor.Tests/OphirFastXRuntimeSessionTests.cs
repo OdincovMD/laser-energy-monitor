@@ -53,6 +53,18 @@ namespace LaserEnergyMonitor.Tests
         }
 
         [Fact]
+        public void OpenUsb_WhenVendorReturnsDriverError_ExplainsDriverLayer()
+        {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => OphirFastXRuntimeSession.OpenUsb(new DriverLoadFailureActiveX()));
+
+            Assert.Contains("Error code: -2147221245", exception.Message);
+            Assert.Contains("Can't Load Drivers", exception.Message);
+            Assert.Contains("vendor USB driver layer", exception.Message);
+            Assert.Contains("Windows Device Manager", exception.Message);
+        }
+
+        [Fact]
         public void OpenSimulated_UsesFastXProtocolAndReturnsData()
         {
             using (StaWorker worker = new StaWorker("Simulated FastX test worker"))
@@ -118,6 +130,20 @@ namespace LaserEnergyMonitor.Tests
             public int OpenUSB(ref int warning)
             {
                 throw new COMException("Simulated destructive failure", unchecked((int)0x8000FFFF));
+            }
+        }
+
+        private sealed class DriverLoadFailureActiveX
+        {
+            public int OpenUSB(ref int warning)
+            {
+                return -2147221245;
+            }
+
+            public int GetErrorFromCode(int errorCode, ref string message)
+            {
+                message = "Can't Load Drivers";
+                return 0;
             }
         }
     }

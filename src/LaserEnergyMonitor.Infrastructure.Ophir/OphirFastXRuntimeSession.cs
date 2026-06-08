@@ -291,10 +291,7 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 return;
             }
 
-            throw new InvalidOperationException(
-                "OphirFastX call failed for '" + methodName + "'." + Environment.NewLine +
-                "Error code: " + errorCode.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "Vendor message: " + TryGetErrorMessage(comObject, errorCode));
+            throw new InvalidOperationException(BuildVendorErrorMessage(comObject, methodName, errorCode));
         }
 
         internal static object Invoke(object comObject, string methodName, params object[] args)
@@ -484,6 +481,26 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 "OphirFastX SDK call failed for '" + methodName + "'." + Environment.NewLine +
                 BuildExceptionDetails(ex),
                 ex);
+        }
+
+        private static string BuildVendorErrorMessage(object comObject, string methodName, int errorCode)
+        {
+            StringBuilder builder = new StringBuilder();
+            builder.Append("OphirFastX call failed for '");
+            builder.Append(methodName);
+            builder.AppendLine("'.");
+            builder.Append("Error code: ");
+            builder.AppendLine(errorCode.ToString(CultureInfo.InvariantCulture));
+            builder.Append("Vendor message: ");
+            builder.AppendLine(TryGetErrorMessage(comObject, errorCode));
+
+            if (string.Equals(methodName, "OpenUSB", StringComparison.OrdinalIgnoreCase))
+            {
+                builder.AppendLine("Diagnosis: the ActiveX control is registered and activated, but its vendor USB driver layer did not initialize.");
+                builder.Append("Check Pulsar USB driver installation, x86 OphirFastX package compatibility, exclusive access by StarLab/Ophir software, and Windows Device Manager status for Ophir/Pulsar/Jungo/WinDriver devices.");
+            }
+
+            return builder.ToString().TrimEnd();
         }
 
         private static string BuildExceptionDetails(Exception ex)

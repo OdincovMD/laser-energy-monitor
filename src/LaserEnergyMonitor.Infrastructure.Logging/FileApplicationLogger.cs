@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using LaserEnergyMonitor.Domain;
 
 namespace LaserEnergyMonitor.Infrastructure.Logging
@@ -45,7 +46,8 @@ namespace LaserEnergyMonitor.Infrastructure.Logging
                         DateTime.UtcNow,
                         level,
                         message,
-                        Environment.NewLine));
+                        Environment.NewLine),
+                    Encoding.UTF8);
             }
         }
     }
