@@ -13,7 +13,7 @@
 - эта памятка
 - инструкция по первичному запуску `BeamGage`
 - инструкция по первичному запуску `Ophir`
-- техническая памятка по `Ophir Pulsar ActiveX`
+- технические памятки по `Ophir COM` и `Ophir Pulsar ActiveX`
 - общий алгоритм приемочной проверки
 - алгоритм проверки `BeamGage`
 - алгоритм проверки `Ophir Pulsar`
@@ -38,8 +38,8 @@
 Для работы с реальным `Ophir`:
 
 - установлен пакет automation / COM runtime от вендора
-- для современных устройств в системе зарегистрирован `OphirLMMeasurement.CoLMMeasurement`
-- для старых устройств Pulsar зарегистрирован x86 ActiveX runtime `OphirFastX`
+- для основного COM-пути в системе зарегистрирован `OphirLMMeasurement.CoLMMeasurement`
+- для старых устройств Pulsar, если нужен fallback, зарегистрирован x86 ActiveX runtime `OphirFastX`
 - установленный runtime совместим с `x86`
 - устройство видно по USB и не занято другой программой
 
@@ -146,6 +146,7 @@
 Используйте отдельную инструкцию:
 
 - `ophir-first-run-validation.md`
+- `ophir-com-validation.md` для основного `Ophir LMMeasurement SDK`
 - `ophir-pulsar-activex-validation.md`, если используется `Ophir Pulsar ActiveX (legacy)`
 
 В ней описано:
@@ -153,6 +154,8 @@
 - что должно быть подготовлено заранее;
 - как выполнить первую диагностику;
 - какие файлы нужно вернуть после проверки.
+
+Для стандартной проверки реального Ophir сначала выберите `Ophir LMMeasurement SDK`. Этот путь использует COM `OphirLMMeasurement.CoLMMeasurement` и последовательность `ScanUSB` / `OpenUSBDevice` / `StartStream` / `GetData`.
 
 Для контроллера `Pulsar FU1.27`, который виден в фирменной программе Ophir, но не возвращается через `ScanUSB`, выберите источник `Ophir Pulsar ActiveX (legacy)`.
 

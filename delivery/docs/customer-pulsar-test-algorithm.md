@@ -7,8 +7,8 @@
 3. Открыть фирменное ПО Ophir / StarLab и проверить, что Pulsar виден с серийным номером.
 4. Закрыть фирменное ПО Ophir / StarLab перед запуском теста в `Laser Energy Monitor`.
 5. Убедиться, что установлен x86 runtime:
-   - `OphirLMMeasurement.CoLMMeasurement` для современного COM API;
-   - `OphirFastX` для legacy Pulsar ActiveX.
+   - `OphirLMMeasurement.CoLMMeasurement` для основного COM API;
+   - `OphirFastX` только если нужен fallback `Ophir Pulsar ActiveX (legacy)`.
 
 ## Проверка Windows USB
 
@@ -19,11 +19,25 @@
 
 Эта проверка не использует Ophir SDK. Она нужна, чтобы отделить видимость устройства в Windows от проблем vendor runtime.
 
-## Проверка Pulsar через приложение
+## Проверка Pulsar через COM
 
-1. В поле `Ophir / Pulsar-4` выбрать `Ophir Pulsar ActiveX (legacy)`.
+1. В поле `Ophir / Pulsar-4` выбрать `Ophir LMMeasurement SDK`.
 2. Нажать `Self-Test`.
 3. Нажать `Ophir Smoke-Test`.
+
+COM-путь использует последовательность:
+
+1. `ScanUSB`
+2. `OpenUSBDevice`
+3. `IsSensorExists`
+4. `StartStream`
+5. `GetData`
+6. `StopStream`
+7. `Close`
+
+## Когда использовать legacy ActiveX
+
+Если фирменная программа Ophir видит Pulsar, но `Ophir LMMeasurement SDK` показывает `ScanUSB result count: 0`, повторите проверку с источником `Ophir Pulsar ActiveX (legacy)`.
 
 Legacy Pulsar путь использует последовательность:
 
@@ -36,16 +50,24 @@ Legacy Pulsar путь использует последовательность
 
 ## Нормальный результат
 
-- `ActiveX registration`: `PASS`.
-- `ActiveX activation`: `PASS`.
-- `USB open`: `PASS`.
-- `Pulsar scan`: найдено хотя бы одно устройство.
+- для COM: `COM registration` и `COM activation` = `PASS`;
+- для COM: `USB scan` находит хотя бы одно устройство;
+- для legacy: `ActiveX registration`, `ActiveX activation` и `USB open` = `PASS`;
+- `Pulsar scan` / `ScanUSB`: найдено хотя бы одно устройство.
 - `Sensor detection`: найден активный канал.
 - `Ophir Smoke-Test` получает samples или хотя бы показывает, что поток стартовал без critical fault.
 
-## Если ошибка на OpenUSB
+## Если ошибка на ScanUSB или OpenUSB
 
-Если отчет показывает, что ActiveX найден и активирован, но падает `OpenUSB`, приложение уже дошло до vendor USB layer. В этом случае нужно проверить:
+Если COM runtime найден и активирован, но `ScanUSB` возвращает ноль устройств, проверьте:
+
+- закрыта ли StarLab / фирменная программа Ophir;
+- установлен ли полный vendor automation package, а не только отдельная DLL;
+- соответствует ли runtime архитектуре `x86`;
+- виден ли Pulsar в `USB Devices`;
+- является ли устройство старым Pulsar, которому нужен fallback `Ophir Pulsar ActiveX (legacy)`.
+
+Если отчет показывает, что ActiveX найден и активирован, но падает `OpenUSB`, приложение уже дошло до legacy vendor USB layer. В этом случае нужно проверить:
 
 - закрыта ли StarLab / фирменная программа Ophir;
 - не запущен ли второй экземпляр `OphirFastX`;

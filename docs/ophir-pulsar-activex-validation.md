@@ -1,5 +1,8 @@
 # Ophir Pulsar ActiveX validation notes
 
+This document is only for the fallback `Ophir Pulsar ActiveX (legacy)` source.
+For the primary COM path `Ophir LMMeasurement SDK`, use [ophir-com-validation.md](./ophir-com-validation.md).
+
 ## Local vendor documentation checked
 
 The local vendor materials were checked under:
@@ -11,7 +14,7 @@ The local vendor materials were checked under:
 
 ## What the vendor API expects
 
-For the modern COM object, the sample sequence is:
+For comparison, the modern COM object sample sequence is:
 
 1. `ScanUSB`
 2. `OpenUSBDevice`
@@ -21,7 +24,7 @@ For the modern COM object, the sample sequence is:
 6. `StopStream`
 7. `Close`
 
-For legacy Pulsar devices through `OphirFastX`, the documented setup is:
+For legacy Pulsar devices through `OphirFastX`, which is the focus of this document, the documented setup is:
 
 1. host the ActiveX control in a windowed ActiveX container
 2. `OpenUSB`

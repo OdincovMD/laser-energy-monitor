@@ -18,9 +18,9 @@
 - целевые unit-тесты для независимой стабильности источников, Ophir и операторских настроек проходят;
 - для `BeamGage` локально подтверждено, что automation видит и потребляет встроенные источники `BeamMaker` и `File` / `FileConsole` на машине без физических датчиков;
 - проверена vendor-документация `Beam Gage\Automation\Documentation`: выбор источника соответствует `IADataSource.DataSourceList` / `IADataSource.DataSource`, физические датчики должны отображаться как `name #serialNumber`;
-- для `Ophir` подтверждено, что COM ProgID `OphirLMMeasurement.CoLMMeasurement` может быть найден и активирован на текущей машине;
+- для `Ophir` подтверждено, что основной COM ProgID `OphirLMMeasurement.CoLMMeasurement` может быть найден и активирован на текущей машине;
 - добавлен отдельный legacy backend `Ophir Pulsar ActiveX (legacy)` для старых Pulsar-устройств, не возвращаемых через `OphirLMMeasurement.ScanUSB`;
-- проверена локальная vendor-документация `Ophir Automation Examples`: современный путь соответствует `ScanUSB` / `OpenUSBDevice` / `StartStream` / `GetData`, legacy Pulsar путь соответствует `OpenUSB` / `GetNumberOfDevices` / `GetDeviceHandle` / `StartCS2` / `GetData`;
+- проверена локальная vendor-документация `Ophir Automation Examples`: основной COM-путь соответствует `ScanUSB` / `OpenUSBDevice` / `IsSensorExists` / `StartStream` / `GetData`, legacy Pulsar путь соответствует `OpenUSB` / `GetNumberOfDevices` / `GetDeviceHandle` / `StartCS2` / `GetData`;
 - при этом наличие runtime не заменяет живую проверку подключенного оборудования.
 
 ## Что уже не является заглушкой
@@ -48,5 +48,6 @@
 5. Выполнить `BeamGage Test`, если используется реальный `BeamGage`.
 6. Для `BeamGage` на стенде выполнить сценарий из `docs/beamgage-first-run-validation.md`: проверить список источников, выбрать оба физических датчика по очереди и сохранить отчеты `beamgage-smoke-test-*.txt`.
 7. Выполнить `Ophir Smoke-Test`, если используется реальный `Ophir / Pulsar-4`.
-8. Для `Ophir Pulsar ActiveX (legacy)` сверить результат с `docs/ophir-pulsar-activex-validation.md`: `OpenUSB` должен пройти до сканирования устройств, иначе проблема остается на уровне vendor USB runtime / драйвера / занятого устройства.
-9. Провести короткую реальную сессию и проверить артефакты в папке `output`.
+8. Для основного COM-пути сверить результат с `docs/ophir-com-validation.md`: `ScanUSB` должен увидеть устройство, а `StartStream` / `GetData` должны пройти без critical fault.
+9. Для `Ophir Pulsar ActiveX (legacy)` сверить результат с `docs/ophir-pulsar-activex-validation.md`: `OpenUSB` должен пройти до сканирования устройств, иначе проблема остается на уровне vendor USB runtime / драйвера / занятого устройства.
+10. Провести короткую реальную сессию и проверить артефакты в папке `output`.

@@ -49,6 +49,7 @@ msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
 - [Алгоритм проверки Ophir Pulsar у заказчика](docs/customer-pulsar-test-algorithm.md)
 - [Первичная проверка BeamGage](docs/beamgage-first-run-validation.md)
 - [Первичная проверка Ophir](docs/ophir-first-run-validation.md)
+- [Ophir COM validation](docs/ophir-com-validation.md)
 - [Ophir Pulsar ActiveX validation](docs/ophir-pulsar-activex-validation.md)
 - [Как участвовать](CONTRIBUTING.md)
 - [Политика безопасности](SECURITY.md)

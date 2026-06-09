@@ -5,7 +5,7 @@
 Эта проверка нужна, чтобы подтвердить:
 
 - установлен ли на компьютере необходимый Ophir runtime;
-- видит ли приложение библиотеку Ophir COM;
+- видит ли приложение COM runtime `OphirLMMeasurement.CoLMMeasurement`;
 - видит ли система подключённое устройство по USB;
 - можно ли переходить к проверке живого потока измерений.
 
@@ -21,12 +21,15 @@
 
 ## Какой источник Ophir выбрать
 
-В приложении доступны два варианта работы с реальным оборудованием:
+В приложении доступны два варианта работы с реальным оборудованием. Начинайте с COM-варианта, если нет отдельного подтверждения, что устройство является старым Pulsar, не возвращаемым через `ScanUSB`.
 
-- `Ophir LMMeasurement SDK` - основной вариант для устройств, которые возвращаются вызовом `ScanUSB`;
+- `Ophir LMMeasurement SDK` - основной COM-вариант для устройств, которые возвращаются вызовом `OphirLMMeasurement.ScanUSB`;
 - `Ophir Pulsar ActiveX (legacy)` - вариант для старых устройств Pulsar, которые видны в фирменной программе Ophir, но не возвращаются вызовом `ScanUSB`.
 
-Для контроллера `Pulsar FU1.27` сначала выберите `Ophir Pulsar ActiveX (legacy)`.
+Для обычной COM-проверки выберите `Ophir LMMeasurement SDK`.
+Для контроллера `Pulsar FU1.27`, если он виден в фирменной программе, но не возвращается через `ScanUSB`, выберите `Ophir Pulsar ActiveX (legacy)`.
+
+Если после выбора `Ophir LMMeasurement SDK` приложение сообщает, что `Ophir COM runtime is not registered`, установите и зарегистрируйте vendor COM package с ProgID `OphirLMMeasurement.CoLMMeasurement`.
 
 Если после выбора источника приложение сообщает `Ophir Pulsar ActiveX runtime is not registered`, установите и зарегистрируйте x86 ActiveX-контрол `OphirFastX`, поставляемый Ophir. На 64-битной Windows для регистрации x86-контрола используется `C:\Windows\SysWOW64\regsvr32.exe`.
 
@@ -55,7 +58,7 @@
 Эта проверка показывает:
 
 - доступен ли runtime выбранного источника;
-- может ли приложение активировать соответствующий объект Ophir COM / ActiveX;
+- может ли приложение активировать выбранный vendor automation object;
 - возвращает ли выбранный API подключённые устройства;
 - есть ли активный датчик;
 - можно ли перейти к краткой проверке потока.
@@ -64,15 +67,17 @@
 
 Нажмите кнопку `USB Devices`.
 
-Эта проверка не использует Ophir SDK / ActiveX. Она формирует список USB-устройств, которые видит Windows, и отдельно подсвечивает совпадения по `Ophir`, `Pulsar`, `Jungo`, `WinDriver`, `StarLab`.
+Эта проверка не использует Ophir SDK. Она формирует список USB-устройств, которые видит Windows, и отдельно подсвечивает совпадения по `Ophir`, `Pulsar`, `Jungo`, `WinDriver`, `StarLab`.
 
-Это полезно, если фирменная программа Ophir видит контроллер, но `Ophir Smoke-Test` падает на `OpenUSB`: так можно сравнить Windows-видимость устройства с видимостью через vendor runtime.
+Это полезно, если фирменная программа Ophir видит контроллер, но `Ophir Smoke-Test` не видит устройство через `ScanUSB` или падает на vendor-вызове: так можно сравнить Windows-видимость устройства с видимостью через vendor runtime.
 
 ### 5. Выполнить Ophir Smoke-Test
 
 Нажмите кнопку `Ophir Smoke-Test`.
 
 Эта проверка запускает короткий тест выбранного реального Ophir runtime и формирует отдельный текстовый отчёт.
+
+Если выбран `Ophir LMMeasurement SDK`, проверка использует COM-последовательность `ScanUSB`, `OpenUSBDevice`, `IsSensorExists`, `StartStream`, `GetData`, `StopStream`, `Close`.
 
 Если выбран `Ophir Pulsar ActiveX (legacy)`, проверка использует последовательность `OpenUSB`, `GetNumberOfDevices`, `GetDeviceHandle`, `StartCS2`, `GetData`.
 
