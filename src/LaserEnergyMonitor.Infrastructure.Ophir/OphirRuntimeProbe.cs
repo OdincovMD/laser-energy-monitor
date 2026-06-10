@@ -486,7 +486,9 @@ namespace LaserEnergyMonitor.Infrastructure.Ophir
                 object[] data = GetData(comObject, handle, channel);
                 Array samples = data[0] as Array;
                 int sampleCount = samples != null ? samples.Length : 0;
-                return "StartStream/GetData/StopStream ok, sample count=" + sampleCount.ToString(CultureInfo.InvariantCulture);
+                return "StartStream/GetData/StopStream ok, sample count=" +
+                    sampleCount.ToString(CultureInfo.InvariantCulture) +
+                    (sampleCount == 0 ? " (expected for pulse-triggered sensors if no laser pulse occurred)" : string.Empty);
             }
             finally
             {

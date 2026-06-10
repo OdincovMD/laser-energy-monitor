@@ -228,6 +228,8 @@ namespace LaserEnergyMonitor.Wpf
             builder.AppendLine("Mode: Selected Ophir backend smoke-test");
             builder.Append("Duration: ");
             builder.AppendLine(_ophirSmokeTestDuration.ToString());
+            builder.AppendLine("Pulse-triggered note: Ophir pulsed sensors may emit no samples until a laser pulse reaches the sensor.");
+            builder.AppendLine("During this smoke-test, fire at least one safe test pulse if live sample validation is required.");
             builder.Append("Configured serial: ");
             builder.AppendLine(string.IsNullOrWhiteSpace(_ophirOptions.DeviceSerialNumber) ? "auto-first-detected" : _ophirOptions.DeviceSerialNumber);
             builder.Append("Configured preferred channel: ");
@@ -331,7 +333,7 @@ namespace LaserEnergyMonitor.Wpf
                     }
                     else
                     {
-                        outcome = "SDK calls completed, but no samples were received during the smoke-test window.";
+                        outcome = "SDK calls completed and streaming stayed open, but no pulse samples were received during the smoke-test window. This is expected if no laser pulse occurred.";
                     }
                 }
                 catch (Exception ex)
@@ -915,7 +917,7 @@ namespace LaserEnergyMonitor.Wpf
 
         private static TimeSpan LoadOphirSmokeTestDuration()
         {
-            double durationMs = ParseDouble(ReadAppSetting("MeasurementSources.OphirSmokeTestDurationMs"), 1500.0d);
+            double durationMs = ParseDouble(ReadAppSetting("MeasurementSources.OphirSmokeTestDurationMs"), 10000.0d);
             if (durationMs < 100.0d)
             {
                 durationMs = 100.0d;

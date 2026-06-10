@@ -25,6 +25,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LaserEnergyMonitor.Wpf", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BeamGageVendorProbe", "tools\BeamGageVendorProbe\BeamGageVendorProbe.csproj", "{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{07C2787E-EAC7-C090-1BA3-A61EC2A24D84}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OphirComProbe", "tools\OphirComProbe\OphirComProbe.csproj", "{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -155,11 +159,24 @@ Global
 		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|Any CPU.Build.0 = Release|x86
 		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|x64.ActiveCfg = Release|x86
 		{4CD4DEA5-899F-48AE-8BBA-F07681E58C67}.Release|x64.Build.0 = Release|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Debug|x86.ActiveCfg = Debug|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Debug|x86.Build.0 = Debug|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Debug|Any CPU.Build.0 = Debug|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Debug|x64.ActiveCfg = Debug|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Debug|x64.Build.0 = Debug|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Release|x86.ActiveCfg = Release|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Release|x86.Build.0 = Release|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Release|Any CPU.ActiveCfg = Release|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Release|Any CPU.Build.0 = Release|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Release|x64.ActiveCfg = Release|x86
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F}.Release|x64.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E01BF95F-1893-4B74-A018-31C4F72B0A40} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{EE14BF20-4F50-4FEF-8562-1A36511F3C0F} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 EndGlobal
