@@ -61,4 +61,4 @@ msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
 
 - сначала сверяйте [Статус реализации](docs/implementation-status.md);
 - если готовите выкладку, смотрите [Комплект поставки](docs/release-bundle-notes.md);
-- для приемочной сессии прогрева используйте операторский режим `Window=20`, `Enter %=0.5`, `Exit %=1.0`;
+
