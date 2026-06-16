@@ -60,5 +60,4 @@ msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
 ## Полезно перед проверкой стенда
 
 - сначала сверяйте [Статус реализации](docs/implementation-status.md);
-- если готовите выкладку, смотрите [Комплект поставки](docs/release-bundle-notes.md);
 
