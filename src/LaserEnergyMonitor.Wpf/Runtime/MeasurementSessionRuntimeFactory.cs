@@ -22,6 +22,7 @@ namespace LaserEnergyMonitor.Wpf
         private const string OphirSdkSourceKey = "ophir-sdk";
         private const string OphirFastXSourceKey = "ophir-fastx";
         private const string OphirFastXSimulationSourceKey = "ophir-fastx-sim";
+        private const string StarLabLogSourceKey = "starlab-log";
         private readonly string _logPath;
         private readonly IOperatorNotifier _notifier;
         private readonly IClock _clock;
@@ -30,6 +31,7 @@ namespace LaserEnergyMonitor.Wpf
         private readonly BeamGageMeasurementOptions _beamGageOptions;
         private readonly TimeSpan _beamGageSmokeTestDuration;
         private readonly OphirMeasurementOptions _ophirOptions;
+        private readonly StarLabLogMeasurementOptions _starLabLogOptions;
         private readonly TimeSpan _ophirSmokeTestDuration;
 
         public MeasurementSessionRuntimeFactory(string logPath, IOperatorNotifier notifier, IClock clock)
@@ -40,6 +42,7 @@ namespace LaserEnergyMonitor.Wpf
             _beamGageOptions = LoadBeamGageOptions();
             _beamGageSmokeTestDuration = LoadBeamGageSmokeTestDuration();
             _ophirOptions = LoadOphirOptions(logPath);
+            _starLabLogOptions = LoadStarLabLogOptions();
             _ophirSmokeTestDuration = LoadOphirSmokeTestDuration();
 
             _firstSourceOptions = new[]
@@ -93,7 +96,13 @@ namespace LaserEnergyMonitor.Wpf
                     "Simulated Pulsar ActiveX",
                     true,
                     () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions, OphirRuntimeBackend.SimulatedPulsarFastX)),
-                    OphirFastXSimulationRuntimeProbe.Probe)
+                    OphirFastXSimulationRuntimeProbe.Probe),
+                new MeasurementSourceOption(
+                    StarLabLogSourceKey,
+                    "StarLab Log File",
+                    true,
+                    () => new StarLabLogMeasurementSource(CloneStarLabLogOptions(_starLabLogOptions)),
+                    () => ProbeStarLabLog(_starLabLogOptions))
             };
 
             if (!string.IsNullOrWhiteSpace(_ophirOptions.ReplayFilePath))
@@ -126,6 +135,11 @@ namespace LaserEnergyMonitor.Wpf
             get { return _beamGageOptions.DataSource; }
         }
 
+        public string ConfiguredStarLabLogPath
+        {
+            get { return _starLabLogOptions.LogFilePath; }
+        }
+
         public IReadOnlyList<string> DiscoverBeamGagePhysicalDataSources()
         {
             BeamGageMeasurementOptions discoveryOptions = CloneBeamGageOptions(_beamGageOptions);
@@ -146,6 +160,11 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             _beamGageOptions.DataSource = dataSource;
+        }
+
+        public void SelectStarLabLogFile(string logFilePath)
+        {
+            _starLabLogOptions.LogFilePath = logFilePath ?? string.Empty;
         }
 
         public MeasurementSessionService Create(string firstSourceKey, string secondSourceKey)
@@ -874,7 +893,8 @@ namespace LaserEnergyMonitor.Wpf
                 selectedOption != null &&
                 !string.Equals(selectedOption.Key, "ophir-sim", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(selectedOption.Key, OphirFastXSimulationSourceKey, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(selectedOption.Key, "ophir-replay", StringComparison.OrdinalIgnoreCase);
+                !string.Equals(selectedOption.Key, "ophir-replay", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(selectedOption.Key, StarLabLogSourceKey, StringComparison.OrdinalIgnoreCase);
 
             return selectedOphirHardware &&
                 (noUsbDevicesDetected ||
@@ -912,6 +932,34 @@ namespace LaserEnergyMonitor.Wpf
                 }
             }
 
+            return options;
+        }
+
+        private static StarLabLogMeasurementOptions LoadStarLabLogOptions()
+        {
+            StarLabLogMeasurementOptions options = StarLabLogMeasurementOptions.Default;
+            string configuredPath = ReadAppSetting("MeasurementSources.StarLabLogPath");
+            options.LogFilePath = string.IsNullOrWhiteSpace(configuredPath)
+                ? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "StarLab",
+                    "Data_log.txt")
+                : configuredPath;
+
+            options.EnergyColumnName = ReadAppSetting("MeasurementSources.StarLabLogEnergyColumn");
+            if (string.IsNullOrWhiteSpace(options.EnergyColumnName))
+            {
+                options.EnergyColumnName = StarLabLogMeasurementOptions.Default.EnergyColumnName;
+            }
+
+            double pollIntervalMs = ParseDouble(ReadAppSetting("MeasurementSources.StarLabLogPollIntervalMs"), 1000.0d);
+            if (pollIntervalMs < 100.0d)
+            {
+                pollIntervalMs = 100.0d;
+            }
+
+            options.PollInterval = TimeSpan.FromMilliseconds(pollIntervalMs);
+            options.StartAtEnd = ParseBool(ReadAppSetting("MeasurementSources.StarLabLogStartAtEnd"), true);
             return options;
         }
 
@@ -971,6 +1019,18 @@ namespace LaserEnergyMonitor.Wpf
             };
         }
 
+        private static StarLabLogMeasurementOptions CloneStarLabLogOptions(StarLabLogMeasurementOptions options)
+        {
+            StarLabLogMeasurementOptions effectiveOptions = options ?? StarLabLogMeasurementOptions.Default;
+            return new StarLabLogMeasurementOptions
+            {
+                LogFilePath = effectiveOptions.LogFilePath,
+                EnergyColumnName = effectiveOptions.EnergyColumnName,
+                PollInterval = effectiveOptions.PollInterval,
+                StartAtEnd = effectiveOptions.StartAtEnd
+            };
+        }
+
         private static MeasurementSourceRuntimeProbeResult ProbeOphirReplay(string replayFilePath)
         {
             bool exists = !string.IsNullOrWhiteSpace(replayFilePath) && File.Exists(replayFilePath);
@@ -993,6 +1053,116 @@ namespace LaserEnergyMonitor.Wpf
                     }
                 }
             };
+        }
+
+        private static MeasurementSourceRuntimeProbeResult ProbeStarLabLog(StarLabLogMeasurementOptions options)
+        {
+            StarLabLogMeasurementOptions effectiveOptions = options ?? StarLabLogMeasurementOptions.Default;
+            bool hasPath = !string.IsNullOrWhiteSpace(effectiveOptions.LogFilePath);
+            bool exists = hasPath && File.Exists(effectiveOptions.LogFilePath);
+            List<MeasurementSourceRuntimeProbeStep> steps = new List<MeasurementSourceRuntimeProbeStep>();
+
+            steps.Add(
+                new MeasurementSourceRuntimeProbeStep
+                {
+                    Name = "Log path",
+                    Status = hasPath ? "PASS" : "FAIL",
+                    Details = hasPath ? effectiveOptions.LogFilePath : "Select StarLab Data_log.txt before starting acquisition."
+                });
+
+            steps.Add(
+                new MeasurementSourceRuntimeProbeStep
+                {
+                    Name = "File exists",
+                    Status = exists ? "PASS" : "FAIL",
+                    Details = exists ? "File is available for shared reading." : "The selected StarLab log file was not found."
+                });
+
+            if (!exists)
+            {
+                return new MeasurementSourceRuntimeProbeResult
+                {
+                    DependencyAvailable = false,
+                    Summary = "StarLab log file is not ready.",
+                    Details = hasPath ? effectiveOptions.LogFilePath : "No StarLab log file is configured.",
+                    Steps = steps
+                };
+            }
+
+            try
+            {
+                StarLabLogParser parser = new StarLabLogParser(effectiveOptions.EnergyColumnName);
+                string[] lines = ReadSharedLines(effectiveOptions.LogFilePath, 200);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    StarLabLogSample ignored;
+                    parser.TryProcessLine(lines[i], out ignored);
+                }
+
+                bool headerFound = parser.Columns.Length > 0;
+                bool energyColumnFound = !string.IsNullOrWhiteSpace(parser.EnergyColumnName);
+                steps.Add(
+                    new MeasurementSourceRuntimeProbeStep
+                    {
+                        Name = "Table header",
+                        Status = headerFound ? "PASS" : "WARN",
+                        Details = headerFound ? string.Join(" | ", parser.Columns) : "Waiting for the StarLab table header."
+                    });
+                steps.Add(
+                    new MeasurementSourceRuntimeProbeStep
+                    {
+                        Name = "Energy column",
+                        Status = energyColumnFound ? "PASS" : "WARN",
+                        Details = energyColumnFound ? parser.EnergyColumnName : "Waiting for an energy column."
+                    });
+
+                return new MeasurementSourceRuntimeProbeResult
+                {
+                    DependencyAvailable = headerFound && energyColumnFound,
+                    Summary = headerFound && energyColumnFound
+                        ? "StarLab log file is ready."
+                        : "StarLab log file is readable, but measurement rows are not ready yet.",
+                    Details =
+                        "Path: " + effectiveOptions.LogFilePath + Environment.NewLine +
+                        "Preferred energy column: " + effectiveOptions.EnergyColumnName + Environment.NewLine +
+                        "Resolved energy column: " + (energyColumnFound ? parser.EnergyColumnName : "n/a") + Environment.NewLine +
+                        "Poll interval: " + effectiveOptions.PollInterval,
+                    Steps = steps
+                };
+            }
+            catch (Exception ex)
+            {
+                steps.Add(
+                    new MeasurementSourceRuntimeProbeStep
+                    {
+                        Name = "Shared read",
+                        Status = "FAIL",
+                        Details = ex.Message
+                    });
+
+                return new MeasurementSourceRuntimeProbeResult
+                {
+                    DependencyAvailable = false,
+                    Summary = "StarLab log file could not be read.",
+                    Details = ex.Message,
+                    Steps = steps
+                };
+            }
+        }
+
+        private static string[] ReadSharedLines(string path, int maxLines)
+        {
+            List<string> lines = new List<string>();
+            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader reader = new StreamReader(stream, Encoding.Default, true))
+            {
+                while (!reader.EndOfStream && lines.Count < maxLines)
+                {
+                    lines.Add(reader.ReadLine());
+                }
+            }
+
+            return lines.ToArray();
         }
 
         private static string ReadAppSetting(string key)

@@ -26,6 +26,7 @@ namespace LaserEnergyMonitor.Wpf
         private LiveMeasurementSnapshot _pendingLiveSnapshot;
         private string _activeFirstSourceKey;
         private string _activeSecondSourceKey;
+        private string _activeStarLabLogPath;
         private int _stationaryEntries;
         private bool _liveUpdatePumpActive;
         private bool _eventLogDirty;
@@ -76,11 +77,15 @@ namespace LaserEnergyMonitor.Wpf
 
                 OutputPathTextBox.Text = Path.Combine(_defaultOutputDir, "measurement-session.xlsx");
                 OutputPathTextBox.ToolTip = OutputPathTextBox.Text;
+                StarLabLogPathTextBox.Text = _runtimeFactory.ConfiguredStarLabLogPath;
+                StarLabLogPathTextBox.ToolTip = StarLabLogPathTextBox.Text;
             }
             finally
             {
                 _isBindingStartupData = false;
             }
+
+            UpdateStarLabLogControls();
         }
 
         private static void SelectSource(System.Windows.Controls.ComboBox comboBox, string key)
@@ -247,6 +252,27 @@ namespace LaserEnergyMonitor.Wpf
             }
         }
 
+        private void OnBrowseStarLabLogClicked(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog dialog = new OpenFileDialog();
+            dialog.Filter = "StarLab log (*.txt)|*.txt|All files (*.*)|*.*";
+            dialog.Title = "Select StarLab log file";
+            dialog.FileName = Path.GetFileName(StarLabLogPathTextBox.Text);
+            string directory = Path.GetDirectoryName(StarLabLogPathTextBox.Text);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                dialog.InitialDirectory = directory;
+            }
+
+            if (dialog.ShowDialog(this) == true)
+            {
+                StarLabLogPathTextBox.Text = dialog.FileName;
+                StarLabLogPathTextBox.ToolTip = dialog.FileName;
+                SynchronizeStarLabLogPath();
+                RefreshSourceDiagnostics();
+            }
+        }
+
         private void OnClearEventsClicked(object sender, RoutedEventArgs e)
         {
             _eventLines.Clear();
@@ -271,6 +297,7 @@ namespace LaserEnergyMonitor.Wpf
 
             RefreshSourceDiagnostics();
             UpdateBeamGagePhysicalControls();
+            UpdateStarLabLogControls();
         }
 
         private void OnBeamGagePhysicalSourceSelectionChanged(object sender, EventArgs e)
@@ -297,11 +324,14 @@ namespace LaserEnergyMonitor.Wpf
 
         private MeasurementSessionService EnsureInitializedService(SessionSettings settings, bool forceRecreate)
         {
+            SynchronizeStarLabLogPath();
             string firstKey = GetSelectedSourceKey(BeamSourceComboBox);
             string secondKey = GetSelectedSourceKey(OphirSourceComboBox);
+            string starLabLogPath = StarLabLogPathTextBox.Text;
             bool selectionChanged =
                 !string.Equals(firstKey, _activeFirstSourceKey, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(secondKey, _activeSecondSourceKey, StringComparison.OrdinalIgnoreCase);
+                !string.Equals(secondKey, _activeSecondSourceKey, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(starLabLogPath, _activeStarLabLogPath, StringComparison.OrdinalIgnoreCase);
 
             if (_service != null && IsSessionConfigurationLocked(_service.State))
             {
@@ -322,6 +352,7 @@ namespace LaserEnergyMonitor.Wpf
                 ResetSessionReview();
                 _activeFirstSourceKey = firstKey;
                 _activeSecondSourceKey = secondKey;
+                _activeStarLabLogPath = starLabLogPath;
                 UpdateState(_service.State);
                 return _service;
             }
@@ -520,6 +551,7 @@ namespace LaserEnergyMonitor.Wpf
             ReplaceService(null);
             _activeFirstSourceKey = null;
             _activeSecondSourceKey = null;
+            _activeStarLabLogPath = null;
             UpdateState(MeasurementSessionState.Idle);
         }
 
@@ -542,6 +574,36 @@ namespace LaserEnergyMonitor.Wpf
                 BeamPhysicalSourceComboBox.SelectedItem is string;
         }
 
+        private void UpdateStarLabLogControls()
+        {
+            if (StarLabLogPathTextBox == null || BrowseStarLabLogButton == null)
+            {
+                return;
+            }
+
+            bool locked = _service != null && IsSessionConfigurationLocked(_service.State);
+            bool starLabSelected = IsStarLabLogSelected();
+            StarLabLogPathTextBox.IsReadOnly = locked || !starLabSelected;
+            BrowseStarLabLogButton.IsEnabled = starLabSelected && !locked;
+        }
+
+        private bool IsStarLabLogSelected()
+        {
+            return string.Equals(GetSelectedSourceKey(OphirSourceComboBox), "starlab-log", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void SynchronizeStarLabLogPath()
+        {
+            if (StarLabLogPathTextBox == null)
+            {
+                return;
+            }
+
+            string path = StarLabLogPathTextBox.Text ?? string.Empty;
+            StarLabLogPathTextBox.ToolTip = path;
+            _runtimeFactory.SelectStarLabLogFile(path);
+        }
+
         private void RefreshSourceDiagnostics()
         {
             if (BeamSourceComboBox == null || OphirSourceComboBox == null || DiagnosticsReportTextBox == null)
@@ -549,6 +611,7 @@ namespace LaserEnergyMonitor.Wpf
                 return;
             }
 
+            SynchronizeStarLabLogPath();
             string firstKey = GetSelectedSourceKey(BeamSourceComboBox);
             string secondKey = GetSelectedSourceKey(OphirSourceComboBox);
             if (string.IsNullOrWhiteSpace(firstKey) || string.IsNullOrWhiteSpace(secondKey))
@@ -606,6 +669,7 @@ namespace LaserEnergyMonitor.Wpf
             OutputPathTextBox.IsReadOnly = locked;
             BrowseButton.IsEnabled = !locked;
             UpdateBeamGagePhysicalControls();
+            UpdateStarLabLogControls();
             if (state == MeasurementSessionState.Idle || state == MeasurementSessionState.Initialized)
             {
                 ResetLiveValues();

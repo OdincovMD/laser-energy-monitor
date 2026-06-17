@@ -104,6 +104,21 @@
                                       SelectedValuePath="Key"
                                       SelectionChanged="OnSourceSelectionChanged" />
 
+                            <TextBlock Text="StarLab log file" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,4" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="StarLabLogPathTextBox" />
+                                <Button x:Name="BrowseStarLabLogButton"
+                                        Grid.Column="2"
+                                        Content="Browse"
+                                        Style="{StaticResource SetupSecondaryButton}"
+                                        Click="OnBrowseStarLabLogClicked" />
+                            </Grid>
+
                         <TextBlock Text="Acquisition" Style="{StaticResource SetupFieldGroupTitle}" />
                         <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
 
