@@ -690,10 +690,10 @@ namespace LaserEnergyMonitor.Wpf
         {
             RecordIdText.Text = snapshot.RecordId.ToString(CultureInfo.InvariantCulture);
             LastUpdateText.Text = snapshot.TimestampUtc.ToLocalTime().ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
-            BeamEnergyText.Text = FormatDouble(snapshot.FirstEnergy);
-            OphirEnergyText.Text = FormatDouble(snapshot.SecondEnergy);
-            BeamAverageText.Text = FormatDouble(snapshot.FirstAverage);
-            OphirAverageText.Text = FormatDouble(snapshot.SecondAverage);
+            BeamEnergyText.Text = FormatEnergy(snapshot.FirstEnergy);
+            OphirEnergyText.Text = FormatEnergy(snapshot.SecondEnergy);
+            BeamAverageText.Text = FormatEnergy(snapshot.FirstAverage);
+            OphirAverageText.Text = FormatEnergy(snapshot.SecondAverage);
             StabilityText.Text = FormatStability(snapshot);
         }
 
@@ -732,6 +732,11 @@ namespace LaserEnergyMonitor.Wpf
         private static string FormatDouble(double? value)
         {
             return value.HasValue ? value.Value.ToString("0.0000", CultureInfo.InvariantCulture) : "-";
+        }
+
+        private static string FormatEnergy(double? value)
+        {
+            return value.HasValue ? value.Value.ToString("0.000000", CultureInfo.InvariantCulture) : "-";
         }
 
         private static string FormatStability(LiveMeasurementSnapshot snapshot)
