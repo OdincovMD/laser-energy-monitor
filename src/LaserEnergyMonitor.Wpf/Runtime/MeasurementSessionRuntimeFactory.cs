@@ -19,9 +19,6 @@ namespace LaserEnergyMonitor.Wpf
     public sealed class MeasurementSessionRuntimeFactory
     {
         private const string BeamGageSdkSourceKey = "beam-sdk";
-        private const string OphirSdkSourceKey = "ophir-sdk";
-        private const string OphirFastXSourceKey = "ophir-fastx";
-        private const string OphirFastXSimulationSourceKey = "ophir-fastx-sim";
         private const string StarLabLogSourceKey = "starlab-log";
         private readonly string _logPath;
         private readonly IOperatorNotifier _notifier;
@@ -30,9 +27,7 @@ namespace LaserEnergyMonitor.Wpf
         private readonly IReadOnlyList<MeasurementSourceOption> _secondSourceOptions;
         private readonly BeamGageMeasurementOptions _beamGageOptions;
         private readonly TimeSpan _beamGageSmokeTestDuration;
-        private readonly OphirMeasurementOptions _ophirOptions;
         private readonly StarLabLogMeasurementOptions _starLabLogOptions;
-        private readonly TimeSpan _ophirSmokeTestDuration;
 
         public MeasurementSessionRuntimeFactory(string logPath, IOperatorNotifier notifier, IClock clock)
         {
@@ -41,25 +36,12 @@ namespace LaserEnergyMonitor.Wpf
             _clock = clock;
             _beamGageOptions = LoadBeamGageOptions();
             _beamGageSmokeTestDuration = LoadBeamGageSmokeTestDuration();
-            _ophirOptions = LoadOphirOptions(logPath);
             _starLabLogOptions = LoadStarLabLogOptions();
-            _ophirSmokeTestDuration = LoadOphirSmokeTestDuration();
 
             _firstSourceOptions = new[]
             {
                 new MeasurementSourceOption(
-                    "beam-sim",
-                    "Simulated BeamGage",
-                    true,
-                    () => new SimulatedMeasurementSource("BeamGage", SimulatedMeasurementProfile.CreateBeamGageCustomerLike(), 50),
-                    () => new MeasurementSourceRuntimeProbeResult
-                    {
-                        DependencyAvailable = true,
-                        Summary = "Simulation mode is ready.",
-                        Details = "No external BeamGage SDK is required."
-                    }),
-                new MeasurementSourceOption(
-                    "beam-sdk",
+                    BeamGageSdkSourceKey,
                     "BeamGage SDK",
                     true,
                     () => new BeamGageMeasurementSource(CloneBeamGageOptions(_beamGageOptions)),
@@ -69,55 +51,12 @@ namespace LaserEnergyMonitor.Wpf
             _secondSourceOptions = new[]
             {
                 new MeasurementSourceOption(
-                    "ophir-sim",
-                    "Simulated Ophir",
-                    true,
-                    () => new SimulatedMeasurementSource("Ophir", SimulatedMeasurementProfile.CreateOphirCustomerLike(), 50),
-                    () => new MeasurementSourceRuntimeProbeResult
-                    {
-                        DependencyAvailable = true,
-                        Summary = "Simulation mode is ready.",
-                        Details = "No external Ophir runtime is required."
-                    }),
-                new MeasurementSourceOption(
-                    "ophir-sdk",
-                    "Ophir LMMeasurement SDK",
-                    true,
-                    () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions, OphirRuntimeBackend.LmMeasurement)),
-                    OphirRuntimeProbe.Probe),
-                new MeasurementSourceOption(
-                    "ophir-fastx",
-                    "Ophir Pulsar ActiveX (legacy)",
-                    true,
-                    () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions, OphirRuntimeBackend.PulsarFastX)),
-                    OphirFastXRuntimeProbe.Probe),
-                new MeasurementSourceOption(
-                    "ophir-fastx-sim",
-                    "Simulated Pulsar ActiveX",
-                    true,
-                    () => new OphirMeasurementSource(CloneOphirOptions(_ophirOptions, OphirRuntimeBackend.SimulatedPulsarFastX)),
-                    OphirFastXSimulationRuntimeProbe.Probe),
-                new MeasurementSourceOption(
                     StarLabLogSourceKey,
                     "StarLab Log File",
                     true,
                     () => new StarLabLogMeasurementSource(CloneStarLabLogOptions(_starLabLogOptions)),
                     () => ProbeStarLabLog(_starLabLogOptions))
             };
-
-            if (!string.IsNullOrWhiteSpace(_ophirOptions.ReplayFilePath))
-            {
-                _secondSourceOptions = _secondSourceOptions.Concat(
-                    new[]
-                    {
-                        new MeasurementSourceOption(
-                            "ophir-replay",
-                            "Ophir Replay Capture",
-                            true,
-                            () => new OphirReplayMeasurementSource(CloneOphirOptions(_ophirOptions)),
-                            () => ProbeOphirReplay(_ophirOptions.ReplayFilePath))
-                    }).ToArray();
-            }
         }
 
         public IReadOnlyList<MeasurementSourceOption> FirstSourceOptions
@@ -228,194 +167,6 @@ namespace LaserEnergyMonitor.Wpf
             string report = UsbDeviceInventory.BuildReport(_clock.UtcNow.ToLocalTime());
             new FileApplicationLogger(_logPath).Info("USB inventory completed." + Environment.NewLine + report);
             WriteSmokeTestReport(report, "usb-inventory");
-            return report;
-        }
-
-        public string RunOphirSmokeTest(string selectedSecondSourceKey)
-        {
-            MeasurementSourceOption selectedOption = GetSecondSourceOption(selectedSecondSourceKey);
-            MeasurementSourceOption ophirSdkOption = GetOphirSmokeTestOption(selectedOption);
-            MeasurementSourceRuntimeProbeResult probe = ophirSdkOption.ProbeRuntime();
-            StringBuilder builder = new StringBuilder();
-            builder.Append("Ophir smoke-test generated at ");
-            builder.Append(_clock.UtcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
-            builder.AppendLine();
-            builder.Append("Selected UI source: ");
-            builder.AppendLine(selectedOption.DisplayName);
-            builder.Append("Executed source: ");
-            builder.AppendLine(ophirSdkOption.DisplayName);
-            builder.AppendLine("Mode: Selected Ophir backend smoke-test");
-            builder.Append("Duration: ");
-            builder.AppendLine(_ophirSmokeTestDuration.ToString());
-            builder.AppendLine("Pulse-triggered note: Ophir pulsed sensors may emit no samples until a laser pulse reaches the sensor.");
-            builder.AppendLine("During this smoke-test, fire at least one safe test pulse if live sample validation is required.");
-            builder.Append("Configured serial: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(_ophirOptions.DeviceSerialNumber) ? "auto-first-detected" : _ophirOptions.DeviceSerialNumber);
-            builder.Append("Configured preferred channel: ");
-            builder.AppendLine(_ophirOptions.PreferredChannel.HasValue ? _ophirOptions.PreferredChannel.Value.ToString() : "auto-first-active");
-            builder.Append("Configured poll interval: ");
-            builder.AppendLine(_ophirOptions.PollInterval.ToString());
-            builder.Append("Configured timestamp strategy: ");
-            builder.AppendLine(_ophirOptions.TimestampStrategy.ToString());
-            builder.Append("Capture directory: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(_ophirOptions.CaptureDirectoryPath) ? "disabled" : _ophirOptions.CaptureDirectoryPath);
-            builder.Append("Replay file: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(_ophirOptions.ReplayFilePath) ? "not configured" : _ophirOptions.ReplayFilePath);
-            builder.AppendLine();
-            builder.Append("Runtime probe summary: ");
-            builder.AppendLine(probe.Summary);
-            AppendProbeSteps(builder, probe);
-            builder.Append("Runtime probe details: ");
-            builder.AppendLine(probe.Details);
-            builder.AppendLine();
-
-            int sampleCount = 0;
-            double? minEnergy = null;
-            double? maxEnergy = null;
-            DateTime? firstTimestampUtc = null;
-            DateTime? lastTimestampUtc = null;
-            DeviceFault fault = null;
-            string resolvedSerialNumber = string.Empty;
-            string resolvedChannel = string.Empty;
-            string capturePath = string.Empty;
-            int rawSampleCount = 0;
-            int acceptedSampleCount = 0;
-            int nonZeroStatusCount = 0;
-            string statusPreview = string.Empty;
-            string outcome;
-            Exception executionException = null;
-
-            bool sdkUnavailable = !probe.DependencyAvailable;
-            bool noUsbDevicesDetected = string.Equals(
-                probe.Summary,
-                "Ophir COM runtime is functional. No USB devices are currently visible.",
-                StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(
-                    probe.Summary,
-                    "Ophir Pulsar ActiveX runtime is functional. No Pulsar USB devices are currently visible.",
-                    StringComparison.OrdinalIgnoreCase);
-
-            if (sdkUnavailable)
-            {
-                outcome = "Runtime unavailable. Acquisition was not attempted.";
-            }
-            else if (noUsbDevicesDetected)
-            {
-                outcome = "Runtime available, but no USB devices are currently visible. Acquisition was skipped.";
-            }
-            else
-            {
-                try
-                {
-                    OphirMeasurementSource source = (OphirMeasurementSource)ophirSdkOption.CreateSource();
-                    using (source)
-                    {
-                        source.MeasurementReceived += delegate(object sender, MeasurementReceivedEventArgs args)
-                        {
-                            MeasurementSample sample = args.Sample;
-                            sampleCount += 1;
-                            if (!firstTimestampUtc.HasValue)
-                            {
-                                firstTimestampUtc = sample.TimestampUtc;
-                            }
-
-                            lastTimestampUtc = sample.TimestampUtc;
-                            minEnergy = !minEnergy.HasValue ? sample.Energy : Math.Min(minEnergy.Value, sample.Energy);
-                            maxEnergy = !maxEnergy.HasValue ? sample.Energy : Math.Max(maxEnergy.Value, sample.Energy);
-                        };
-
-                        source.Faulted += delegate(object sender, DeviceFaultEventArgs args)
-                        {
-                            fault = args != null ? args.Fault : null;
-                        };
-
-                        source.Initialize();
-                        resolvedSerialNumber = string.IsNullOrWhiteSpace(source.CurrentSerialNumber) ? "n/a" : source.CurrentSerialNumber;
-                        resolvedChannel = source.CurrentChannel.HasValue ? source.CurrentChannel.Value.ToString() : "n/a";
-                        source.Start();
-                        Thread.Sleep(_ophirSmokeTestDuration);
-                        source.Stop();
-                        capturePath = string.IsNullOrWhiteSpace(source.LastCapturePath) ? "n/a" : source.LastCapturePath;
-                        rawSampleCount = source.RawSampleCount;
-                        acceptedSampleCount = source.AcceptedSampleCount;
-                        nonZeroStatusCount = source.NonZeroStatusCount;
-                        statusPreview = source.StatusPreview;
-                    }
-
-                    if (fault != null)
-                    {
-                        outcome = "Streaming fault reported by Ophir source.";
-                    }
-                    else if (sampleCount > 0)
-                    {
-                        outcome = "Live samples were received from the real Ophir SDK source.";
-                    }
-                    else
-                    {
-                        outcome = "SDK calls completed and streaming stayed open, but no pulse samples were received during the smoke-test window. This is expected if no laser pulse occurred.";
-                    }
-                }
-                catch (Exception ex)
-                {
-                    executionException = ex;
-                    outcome = "Acquisition attempt failed before live samples were confirmed.";
-                }
-            }
-
-            builder.Append("Outcome: ");
-            builder.AppendLine(outcome);
-            builder.Append("Samples captured: ");
-            builder.AppendLine(sampleCount.ToString());
-            builder.Append("First sample UTC: ");
-            builder.AppendLine(firstTimestampUtc.HasValue ? firstTimestampUtc.Value.ToString("O") : "n/a");
-            builder.Append("Last sample UTC: ");
-            builder.AppendLine(lastTimestampUtc.HasValue ? lastTimestampUtc.Value.ToString("O") : "n/a");
-            builder.Append("Energy min/max: ");
-            builder.AppendLine(
-                minEnergy.HasValue && maxEnergy.HasValue
-                    ? minEnergy.Value.ToString("0.000000") + " / " + maxEnergy.Value.ToString("0.000000")
-                    : "n/a");
-            builder.Append("Resolved serial: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(resolvedSerialNumber) ? "n/a" : resolvedSerialNumber);
-            builder.Append("Resolved channel: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(resolvedChannel) ? "n/a" : resolvedChannel);
-            builder.Append("Capture file: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(capturePath) ? "n/a" : capturePath);
-            builder.Append("Raw samples observed: ");
-            builder.AppendLine(rawSampleCount.ToString());
-            builder.Append("Accepted energy samples: ");
-            builder.AppendLine(acceptedSampleCount.ToString());
-            builder.Append("Non-zero status samples: ");
-            builder.AppendLine(nonZeroStatusCount.ToString());
-            builder.Append("First raw statuses: ");
-            builder.AppendLine(string.IsNullOrWhiteSpace(statusPreview) ? "n/a" : statusPreview);
-
-            if (fault != null)
-            {
-                builder.Append("Fault: ");
-                builder.AppendLine(fault.Message);
-            }
-            else
-            {
-                builder.AppendLine("Fault: none");
-            }
-
-            if (executionException != null)
-            {
-                builder.Append("Exception: ");
-                builder.AppendLine(executionException.Message);
-            }
-
-            if (ShouldEmbedUsbInventory(selectedOption, probe, executionException, noUsbDevicesDetected))
-            {
-                builder.AppendLine();
-                builder.AppendLine("Windows USB inventory summary:");
-                builder.AppendLine(UsbDeviceInventory.BuildReport(_clock.UtcNow.ToLocalTime(), false));
-            }
-
-            string report = builder.ToString().Trim();
-            new FileApplicationLogger(_logPath).Info("Ophir smoke-test completed." + Environment.NewLine + report);
-            WriteSmokeTestReport(report, "ophir-smoke-test");
             return report;
         }
 
@@ -883,58 +634,6 @@ namespace LaserEnergyMonitor.Wpf
             File.WriteAllText(reportPath, report, Encoding.UTF8);
         }
 
-        private static bool ShouldEmbedUsbInventory(
-            MeasurementSourceOption selectedOption,
-            MeasurementSourceRuntimeProbeResult probe,
-            Exception executionException,
-            bool noUsbDevicesDetected)
-        {
-            bool selectedOphirHardware =
-                selectedOption != null &&
-                !string.Equals(selectedOption.Key, "ophir-sim", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(selectedOption.Key, OphirFastXSimulationSourceKey, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(selectedOption.Key, "ophir-replay", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(selectedOption.Key, StarLabLogSourceKey, StringComparison.OrdinalIgnoreCase);
-
-            return selectedOphirHardware &&
-                (noUsbDevicesDetected ||
-                executionException != null ||
-                (probe != null && !probe.DependencyAvailable));
-        }
-
-        private static OphirMeasurementOptions LoadOphirOptions(string logPath)
-        {
-            OphirMeasurementOptions options = OphirMeasurementOptions.Default;
-            options.DeviceSerialNumber = ReadAppSetting("MeasurementSources.OphirSerialNumber");
-            options.PreferredChannel = ParseNullableInt(ReadAppSetting("MeasurementSources.OphirPreferredChannel"));
-            options.TimestampStrategy = ParseTimestampStrategy(ReadAppSetting("MeasurementSources.OphirTimestampStrategy"));
-            options.ReplayFilePath = ReadAppSetting("MeasurementSources.OphirReplayPath");
-            options.ReplaySpeedMultiplier = ParseDouble(ReadAppSetting("MeasurementSources.OphirReplaySpeedMultiplier"), 1.0d);
-
-            double pollIntervalMs = ParseDouble(ReadAppSetting("MeasurementSources.OphirPollIntervalMs"), 50.0d);
-            if (pollIntervalMs < 1.0d)
-            {
-                pollIntervalMs = 1.0d;
-            }
-
-            options.PollInterval = TimeSpan.FromMilliseconds(pollIntervalMs);
-            string captureDirectory = ReadAppSetting("MeasurementSources.OphirCaptureDirectory");
-            if (!string.IsNullOrWhiteSpace(captureDirectory))
-            {
-                options.CaptureDirectoryPath = captureDirectory;
-            }
-            else
-            {
-                string logDirectory = Path.GetDirectoryName(logPath);
-                if (!string.IsNullOrWhiteSpace(logDirectory))
-                {
-                    options.CaptureDirectoryPath = Path.Combine(logDirectory, "ophir-captures");
-                }
-            }
-
-            return options;
-        }
-
         private static StarLabLogMeasurementOptions LoadStarLabLogOptions()
         {
             StarLabLogMeasurementOptions options = StarLabLogMeasurementOptions.Default;
@@ -963,17 +662,6 @@ namespace LaserEnergyMonitor.Wpf
             return options;
         }
 
-        private static TimeSpan LoadOphirSmokeTestDuration()
-        {
-            double durationMs = ParseDouble(ReadAppSetting("MeasurementSources.OphirSmokeTestDurationMs"), 10000.0d);
-            if (durationMs < 100.0d)
-            {
-                durationMs = 100.0d;
-            }
-
-            return TimeSpan.FromMilliseconds(durationMs);
-        }
-
         private static TimeSpan LoadBeamGageSmokeTestDuration()
         {
             double durationMs = ParseDouble(ReadAppSetting("MeasurementSources.BeamGageSmokeTestDurationMs"), 1500.0d);
@@ -985,40 +673,6 @@ namespace LaserEnergyMonitor.Wpf
             return TimeSpan.FromMilliseconds(durationMs);
         }
 
-        private MeasurementSourceOption GetOphirSmokeTestOption(MeasurementSourceOption selectedOption)
-        {
-            if (selectedOption != null &&
-                string.Equals(selectedOption.Key, OphirFastXSourceKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return GetSecondSourceOption(OphirFastXSourceKey);
-            }
-
-            if (selectedOption != null &&
-                string.Equals(selectedOption.Key, OphirFastXSimulationSourceKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return GetSecondSourceOption(OphirFastXSimulationSourceKey);
-            }
-
-            return GetSecondSourceOption(OphirSdkSourceKey);
-        }
-
-        private static OphirMeasurementOptions CloneOphirOptions(
-            OphirMeasurementOptions options,
-            OphirRuntimeBackend? runtimeBackend = null)
-        {
-            return new OphirMeasurementOptions
-            {
-                RuntimeBackend = runtimeBackend ?? options.RuntimeBackend,
-                DeviceSerialNumber = options.DeviceSerialNumber,
-                PreferredChannel = options.PreferredChannel,
-                PollInterval = options.PollInterval,
-                TimestampStrategy = options.TimestampStrategy,
-                CaptureDirectoryPath = options.CaptureDirectoryPath,
-                ReplayFilePath = options.ReplayFilePath,
-                ReplaySpeedMultiplier = options.ReplaySpeedMultiplier
-            };
-        }
-
         private static StarLabLogMeasurementOptions CloneStarLabLogOptions(StarLabLogMeasurementOptions options)
         {
             StarLabLogMeasurementOptions effectiveOptions = options ?? StarLabLogMeasurementOptions.Default;
@@ -1028,30 +682,6 @@ namespace LaserEnergyMonitor.Wpf
                 EnergyColumnName = effectiveOptions.EnergyColumnName,
                 PollInterval = effectiveOptions.PollInterval,
                 StartAtEnd = effectiveOptions.StartAtEnd
-            };
-        }
-
-        private static MeasurementSourceRuntimeProbeResult ProbeOphirReplay(string replayFilePath)
-        {
-            bool exists = !string.IsNullOrWhiteSpace(replayFilePath) && File.Exists(replayFilePath);
-            return new MeasurementSourceRuntimeProbeResult
-            {
-                DependencyAvailable = exists,
-                Summary = exists
-                    ? "Replay capture file is available."
-                    : "Replay capture file is missing.",
-                Details = exists
-                    ? replayFilePath
-                    : "Configure MeasurementSources.OphirReplayPath to a valid capture CSV file.",
-                Steps = new[]
-                {
-                    new MeasurementSourceRuntimeProbeStep
-                    {
-                        Name = "Replay file",
-                        Status = exists ? "PASS" : "FAIL",
-                        Details = replayFilePath ?? string.Empty
-                    }
-                }
             };
         }
 
@@ -1217,17 +847,6 @@ namespace LaserEnergyMonitor.Wpf
             };
         }
 
-        private static int? ParseNullableInt(string value)
-        {
-            int parsed;
-            if (int.TryParse(value, out parsed))
-            {
-                return parsed;
-            }
-
-            return null;
-        }
-
         private static TimeSpan ParseBeamGageFrameTimeout(string value)
         {
             double durationMs = ParseDouble(value, BeamGageMeasurementOptions.Default.FrameTimeout.TotalMilliseconds);
@@ -1270,14 +889,6 @@ namespace LaserEnergyMonitor.Wpf
             return double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out parsed)
                 ? parsed
                 : (double?)null;
-        }
-
-        private static OphirTimestampStrategy ParseTimestampStrategy(string value)
-        {
-            OphirTimestampStrategy parsed;
-            return Enum.TryParse(value, true, out parsed)
-                ? parsed
-                : OphirTimestampStrategy.HostArrivalUtc;
         }
 
         private static BeamGageTimestampStrategy ParseBeamGageTimestampStrategy(string value)

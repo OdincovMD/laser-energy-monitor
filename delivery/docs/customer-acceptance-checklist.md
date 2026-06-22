@@ -1,62 +1,39 @@
-# Laser Energy Monitor: алгоритм приемочной проверки
+# Laser Energy Monitor: приемочная проверка
 
 ## Цель
 
-Проверка нужна, чтобы подтвердить запуск приложения, видимость оборудования и получение диагностических отчетов до длинной измерительной серии.
+Подтвердить запуск приложения, подключение целевых источников и запись результата в Excel.
 
-## Общий порядок
+## Порядок проверки
 
-1. Распаковать поставку в локальную папку, где у пользователя есть права на запись.
-2. Закрыть фирменные программы, которые могут удерживать `BeamGage` или `Ophir`.
-3. Запустить `app\LaserEnergyMonitor.Wpf.exe`.
-4. В блоке `Run Setup` выбрать нужные источники:
-   - для BeamGage: `BeamGage SDK`;
-   - для Ophir Pulsar: `Ophir Pulsar ActiveX (legacy)`;
-   - для автономной проверки: симулированные источники.
-5. Нажать `Self-Test`.
-6. Нажать `USB Devices`.
-7. Выполнить профильную проверку:
-   - `BeamGage Test` для BeamGage;
-   - `Ophir Smoke-Test` для Pulsar/Ophir.
-8. Если профильные проверки успешны, выставить операторские настройки приемочной сессии:
-   - `Window=20`;
-   - `Enter %=0.5`;
-   - `Exit %=1.0`.
-9. Выполнить короткую измерительную сессию на 30-60 секунд.
-10. Проверить, что в папке `output` появились отчеты и итоговый `measurement-session.xlsx`.
-11. В `measurement-session.RawData.csv` найти момент стабильности:
-   - `FirstIsStationary: 0 -> 1` - стабилизировался первый источник;
-   - `SecondIsStationary: 0 -> 1` - стабилизировался второй источник;
-   - `IsStationary: 0 -> 1` - оба источника стабильны, лазер прогрелся.
-12. В `measurement-session.Events.csv` проверить наличие события `StationaryEntered`.
+1. Распаковать поставку в локальную папку с правами на запись.
+2. Запустить `app\LaserEnergyMonitor.Wpf.exe`.
+3. Для Beam выбрать `BeamGage SDK`.
+4. Нажать `Scan`, выбрать физический источник и нажать `Connect`.
+5. В StarLab подключить Ophir и включить логирование результатов.
+6. Для Ophir выбрать `StarLab Log File`.
+7. Указать файл `Data_log.txt`.
+8. Нажать `Self-Test`.
+9. Запустить короткую сессию на 30-60 секунд.
+10. Проверить итоговый `measurement-session.xlsx` и `measurement-session.RawData.csv`.
 
-## Что считать успешным результатом
+## Критерии успеха
 
 - Приложение запускается без ошибки.
-- `Self-Test` не показывает критическую ошибку выбранного источника.
-- `USB Devices` формирует список USB-устройств.
-- `BeamGage Test` или `Ophir Smoke-Test` получает живые samples либо ясно сообщает, что runtime есть, но устройство не видно.
-- Итоговая сессия создает `.xlsx` и диагностические CSV-файлы.
-- Разные абсолютные значения `BeamGage` и `Ophir` допустимы; для прогрева анализируется изменение каждого источника относительно самого себя.
+- BeamGage source подключается через `Connect`.
+- StarLab пишет новые строки в `Data_log.txt`.
+- `Self-Test` видит StarLab log file и колонку энергии.
+- В UI меняются значения Beam и Ophir.
+- В Excel записаны строки с разными значениями Ophir.
 - В `RawData.csv` есть колонки `FirstStabilityMetricPercent`, `SecondStabilityMetricPercent`, `FirstIsStationary`, `SecondIsStationary`, `IsStationary`.
-- Каждая строка `RawData.csv` соответствует одному sample одного источника; стационарность обновляется при приходе sample от соответствующего источника.
 
 ## Что вернуть разработчику
 
-Из папки `output` нужно вернуть:
-
-- `application.log`;
-- `hardware-self-test-*.txt`;
-- `usb-inventory-*.txt`;
-- `beamgage-smoke-test-*.txt`, если проверялся BeamGage;
-- `ophir-smoke-test-*.txt`, если проверялся Ophir / Pulsar;
-- `measurement-session.xlsx`;
-- `measurement-session.*.csv`;
-- папку `ophir-captures`, если она появилась.
-
-Также нужно сообщить:
-
-- модели подключенных датчиков;
-- какие источники были выбраны в UI;
-- видит ли оборудование фирменная программа вендора;
-- была ли фирменная программа открыта во время проверки.
+- `application.log`
+- `hardware-self-test-*.txt`
+- `usb-inventory-*.txt`, если запускался `USB Devices`
+- `beamgage-smoke-test-*.txt`, если запускался `BeamGage Test`
+- `measurement-session.xlsx`
+- `measurement-session.*.csv`
+- фрагмент `Data_log.txt`, если проблема связана с Ophir
+- модели подключенных датчиков и выбранные источники в UI

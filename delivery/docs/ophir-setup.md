@@ -1,46 +1,42 @@
-# Настройка Ophir
+# Настройка Ophir через StarLab log
 
-Интеграция Ophir перед началом любого живого захвата выполняет предварительную проверку.
-Основной поддерживаемый путь - COM API `OphirLMMeasurement.CoLMMeasurement`.
-Отдельный legacy-путь `OphirFastX` оставлен только для старых Pulsar-устройств, которые видны в фирменной программе Ophir, но не возвращаются через `OphirLMMeasurement.ScanUSB`.
+Актуальный путь подключения Ophir в приложении - чтение файла журнала StarLab.
+Приложение больше не подключается к Ophir напрямую через COM, ActiveX или SDK.
 
 ## Требуемое состояние машины
 
-- На машине должен быть установлен подходящий automation package от вендора Ophir.
-- Для основного COM backend должен быть зарегистрирован ProgID `OphirLMMeasurement.CoLMMeasurement`.
-- Для старых устройств Pulsar, которые не видны через `ScanUSB`, может дополнительно понадобиться x86 ActiveX-контрол `OphirFastX`. Приложение распознаёт `OPHIRFASTX.OphirFastXCtrl.1` и `OPHIRFASTXBeta.OphirFastXCtrl.1`.
-- Установленный runtime от вендора должен соответствовать целевой архитектуре приложения `x86`.
+- Установлена и запускается официальная программа StarLab.
+- Датчик Ophir подключается в StarLab штатным способом.
+- В StarLab включено логирование результатов в `Data_log.txt`.
+- Приложение имеет доступ на чтение к выбранному файлу.
 
-## Что делает текущий адаптер
+Типовой путь файла:
 
-- `Ophir LMMeasurement SDK` использует COM-последовательность `ScanUSB`, `OpenUSBDevice`, `IsSensorExists`, `StartStream`, `GetData`, `StopStream`, `Close`.
-- `Ophir Pulsar ActiveX (legacy)` использует последовательность `OpenUSB`, `GetNumberOfDevices`, `GetDeviceHandle`, `StartCS2` и `GetData` только как fallback для старых Pulsar.
-- Если нужный ProgID отсутствует, приложение выдаёт понятную ошибку о неподготовленном окружении вместо общей COM-ошибки активации.
-- Если выбранный runtime присутствует, приложение может создать COM-объект, проверить видимость по USB и запустить короткий smoke-test против выбранного реального источника.
-- Если устройство видно, приложение может попробовать короткий живой захват и при необходимости сохранить сырые выборки в CSV для последующего повторного воспроизведения.
+```text
+C:\Users\<user>\Documents\StarLab\Data_log.txt
+```
 
-## Выбор источника в приложении
+## Как работает адаптер
 
-WPF-приложение читает настройки по каждому источнику из `src/LaserEnergyMonitor.Wpf/App.config`.
+- StarLab пишет новые строки в лог.
+- Приложение читает файл с совместным доступом, не блокируя StarLab.
+- По умолчанию приложение опрашивает файл раз в 1 секунду.
+- Если StarLab сбрасывает данные раз в 3 секунды, приложение забирает появившиеся строки пачкой.
+- Значение энергии берется из колонки `Math M`, если не указана другая колонка в конфигурации.
 
-Активный источник выбирается в интерфейсе:
+## Выбор источника
 
-- `Simulated Ophir` для автономной проверки рабочих сценариев.
-- `Ophir LMMeasurement SDK` - основной вариант для устройств, которые возвращаются вызовом `OphirLMMeasurement.ScanUSB`.
-- `Ophir Pulsar ActiveX (legacy)` для старых устройств Pulsar, включая случай `Pulsar FU1.27`, когда фирменная утилита видит устройство, но `ScanUSB` возвращает ноль устройств.
-- `Ophir Replay Capture` появляется, когда `MeasurementSources.OphirReplayPath` указывает на существующий CSV с захватом.
+В блоке Ophir выберите `StarLab Log File`, затем кнопкой выбора файла укажите `Data_log.txt`.
+Перед стартом измерения убедитесь, что StarLab уже пишет лог и в файле появились заголовок таблицы и строки измерений.
 
-`Ophir Smoke-Test` проверяет выбранный реальный источник. Для `Ophir LMMeasurement SDK` это COM self-check и поток `StartStream` / `GetData`; для `Ophir Pulsar ActiveX (legacy)` это legacy-последовательность `OpenUSB` / `StartCS2` / `GetData`.
+## Актуальные настройки
 
-Актуальные настройки:
+- `MeasurementSources.StarLabLogPath`
+- `MeasurementSources.StarLabLogEnergyColumn`
+- `MeasurementSources.StarLabLogPollIntervalMs`
+- `MeasurementSources.StarLabLogStartAtEnd`
 
-- `MeasurementSources.OphirSerialNumber`
-- `MeasurementSources.OphirPreferredChannel`
-- `MeasurementSources.OphirPollIntervalMs`
-- `MeasurementSources.OphirTimestampStrategy`
-- `MeasurementSources.OphirCaptureDirectory`
-- `MeasurementSources.OphirReplayPath`
-- `MeasurementSources.OphirReplaySpeedMultiplier`
-- `MeasurementSources.OphirSmokeTestDurationMs`
+## Локальная проверка без прибора
 
-Перед первой живой проверкой на целевой машине смотрите [ophir-integration-checklist.md](./ophir-integration-checklist.md).
+Для проверки чтения файла используйте `StarLabLogSimulator`.
+Он генерирует StarLab-подобный `Data_log.txt`, после чего основное приложение можно подключить к этому файлу как к обычному источнику.

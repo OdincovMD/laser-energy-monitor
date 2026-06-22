@@ -67,8 +67,8 @@ namespace LaserEnergyMonitor.Wpf
             {
                 BeamSourceComboBox.ItemsSource = _runtimeFactory.FirstSourceOptions;
                 OphirSourceComboBox.ItemsSource = _runtimeFactory.SecondSourceOptions;
-                SelectSource(BeamSourceComboBox, "beam-sim");
-                SelectSource(OphirSourceComboBox, "ophir-sim");
+                SelectSource(BeamSourceComboBox, "beam-sdk");
+                SelectSource(OphirSourceComboBox, "starlab-log");
                 BindBeamGagePhysicalDataSources(
                     string.IsNullOrWhiteSpace(_runtimeFactory.ConfiguredBeamGageDataSource)
                         ? new string[0]
@@ -183,19 +183,6 @@ namespace LaserEnergyMonitor.Wpf
                     DiagnosticsReportTextBox.Text = report;
                     AddEvent("BeamGage smoke-test completed.");
                     MessageBox.Show(this, report, "BeamGage Smoke-Test", MessageBoxButton.OK, MessageBoxImage.Information);
-                });
-        }
-
-        private void OnOphirSmokeTestClicked(object sender, RoutedEventArgs e)
-        {
-            RunUiAction(
-                "Ophir smoke-test error",
-                delegate
-                {
-                    string report = _runtimeFactory.RunOphirSmokeTest(GetSelectedSourceKey(OphirSourceComboBox));
-                    DiagnosticsReportTextBox.Text = report;
-                    AddEvent("Ophir smoke-test completed.");
-                    MessageBox.Show(this, report, "Ophir Smoke-Test", MessageBoxButton.OK, MessageBoxImage.Information);
                 });
         }
 
@@ -659,7 +646,6 @@ namespace LaserEnergyMonitor.Wpf
             SelfTestButton.IsEnabled = !locked;
             UsbDevicesTestButton.IsEnabled = !locked;
             BeamGageTestButton.IsEnabled = !locked;
-            OphirTestButton.IsEnabled = !locked;
             BeamSourceComboBox.IsEnabled = !locked;
             OphirSourceComboBox.IsEnabled = !locked;
             SessionNameTextBox.IsReadOnly = locked;
