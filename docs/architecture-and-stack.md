@@ -232,7 +232,6 @@ public interface IMeasurementSource : IDisposable
 {
     string SourceId { get; }
     bool IsConnected { get; }
-    void Initialize();
     void Start();
     void Stop();
     event EventHandler<MeasurementReceivedEventArgs> MeasurementReceived;

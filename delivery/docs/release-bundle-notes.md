@@ -16,9 +16,9 @@
 ## Поддерживаемые источники
 
 - Beam: `BeamGage SDK`, затем `Scan`, выбор физического source и `Connect`.
-- Ophir: `StarLab Log File`, чтение `Data_log.txt`, который пишет официальная программа StarLab.
+- Ophir: чтение `Data_log.txt`, который пишет официальная программа StarLab.
 
-Старые варианты прямого Ophir COM/ActiveX, replay и встроенные симуляции из приложения удалены.
+Старые варианты прямого Ophir COM/ActiveX, replay, встроенные симуляции и диагностические кнопки из основного окна удалены.
 
 ## Что нужно для запуска
 
@@ -32,9 +32,10 @@
 1. Распаковать комплект в локальный каталог.
 2. Запустить `LaserEnergyMonitor.Wpf.exe`.
 3. В Beam нажать `Scan`, выбрать нужный источник и нажать `Connect`.
-4. В Ophir выбрать `StarLab Log File` и указать `Data_log.txt`.
-5. Выполнить `Self-Test`.
-6. Запустить измерительную сессию.
+4. В Ophir указать файл `Data_log.txt`.
+5. Проверить `Window`, `Enter %`, `Exit %` и `Output Path`.
+6. Нажать `Start`.
+7. После серии нажать `Stop`.
 
 ## Артефакты рядом с приложением
 
@@ -44,20 +45,11 @@
 - `measurement-session.Events.csv`
 - `measurement-session.Summary.csv`
 - `measurement-session.Stationary.csv`
-- `hardware-self-test-*.txt`
-- `usb-inventory-*.txt`
-- `beamgage-smoke-test-*.txt`
-
-## Проверено локально
-
-- `dotnet build LaserEnergyMonitor.sln -p:Platform=x86 --no-restore`
-- `dotnet test LaserEnergyMonitor.sln -p:Platform=x86 --no-restore`
-- актуальные unit-тесты: 23 passed
 
 ## Что проверить на целевом ПК
 
 - BeamGage видит физические источники после `Scan`.
 - Выбранный BeamGage source подключается через `Connect`.
 - StarLab пишет `Data_log.txt`.
-- `StarLab Log File` в приложении видит файл, заголовок и колонку энергии.
-- В UI и Excel значения Ophir меняются во время сессии.
+- В UI меняются значения Beam и Ophir.
+- В Excel значения Ophir меняются во время сессии.

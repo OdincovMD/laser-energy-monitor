@@ -16,13 +16,12 @@ C:\Users\<user>\Documents\StarLab\Data_log.txt
 ## Проверка в приложении
 
 1. Запустите `LaserEnergyMonitor.Wpf.exe`.
-2. В блоке Beam выберите `BeamGage SDK`.
-3. Нажмите `Scan`, выберите нужный BeamGage source и нажмите `Connect`.
-4. В блоке Ophir выберите `StarLab Log File`.
-5. Нажмите кнопку выбора файла и укажите `Data_log.txt`.
-6. Нажмите `Self-Test`.
-7. Проверьте, что карточка Ophir сообщает, что StarLab log file готов или читается.
-8. Запустите короткую измерительную сессию и проверьте, что значение Ophir меняется в UI и попадает в Excel.
+2. В Beam нажмите `Scan`, выберите нужный BeamGage source и нажмите `Connect`.
+3. В блоке Ophir укажите `Data_log.txt`.
+4. Нажмите `Start`.
+5. Проверьте, что значение Ophir меняется в UI.
+6. Нажмите `Stop`.
+7. Проверьте, что значение Ophir попало в Excel и `measurement-session.RawData.csv`.
 
 ## Что сохранить при проблеме
 

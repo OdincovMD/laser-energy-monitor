@@ -3,202 +3,158 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Laser Energy Monitor"
         Icon="Assets/AppIcon.png"
-        Width="1360"
-        Height="860"
-        MinWidth="1180"
-        MinHeight="860"
+        Width="1160"
+        Height="760"
+        MinWidth="980"
+        MinHeight="680"
         WindowStartupLocation="CenterScreen">
     <Grid Background="{StaticResource PageBrush}" Margin="16">
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="340" />
-                <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="360" />
-            </Grid.ColumnDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="390" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource Card}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock Text="Run Setup" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="BeamGage SDK and StarLab log file" Style="{StaticResource SectionCaption}" />
+
+                    <TextBlock Text="SOURCES" Style="{StaticResource FieldGroupTitle}" />
+                    <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
+
+                    <TextBlock Text="BeamGage source" Style="{StaticResource FieldLabel}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="BeamPhysicalSourceComboBox"
+                                  SelectionChanged="OnBeamGagePhysicalSourceSelectionChanged" />
+                        <Button x:Name="RefreshBeamGageSourcesButton"
+                                Grid.Column="2"
+                                Content="Scan"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="OnRefreshBeamGageSourcesClicked" />
+                        <Button x:Name="ReconnectBeamGageButton"
+                                Grid.Column="4"
+                                Content="Connect"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="OnReconnectBeamGageClicked" />
+                    </Grid>
+
+                    <TextBlock Text="StarLab log file" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="StarLabLogPathTextBox" />
+                        <Button x:Name="BrowseStarLabLogButton"
+                                Grid.Column="2"
+                                Content="Browse"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="OnBrowseStarLabLogClicked" />
+                    </Grid>
+
+                    <TextBlock Text="PARAMETERS" Style="{StaticResource FieldGroupTitle}" />
+                    <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
+
+                    <TextBlock Text="Session" Style="{StaticResource FieldLabel}" />
+                    <TextBox x:Name="SessionNameTextBox" Text="Prototype Session" />
+
+                    <TextBlock Text="Window" Style="{StaticResource FieldLabel}" Margin="0,10,0,4" />
+                    <TextBox x:Name="WindowSizeTextBox" Text="20" />
+
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Enter %" Style="{StaticResource FieldLabel}" />
+                            <TextBox x:Name="EnterThresholdTextBox" Text="0.5" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Exit %" Style="{StaticResource FieldLabel}" />
+                            <TextBox x:Name="ExitThresholdTextBox" Text="1.0" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="OUTPUT" Style="{StaticResource FieldGroupTitle}" />
+                    <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
+
+                    <TextBlock Text="Export" Style="{StaticResource FieldLabel}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="OutputPathTextBox" />
+                        <Button x:Name="BrowseButton"
+                                Grid.Column="2"
+                                Content="Browse"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="OnBrowseClicked" />
+                    </Grid>
+
+                    <Grid Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="StartButton"
+                                Content="Start"
+                                Style="{StaticResource PrimaryButton}"
+                                Click="OnStartClicked" />
+                        <Button x:Name="StopButton"
+                                Grid.Column="2"
+                                Content="Stop"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="OnStopClicked" />
+                    </Grid>
+
+                    <TextBlock Text="STATUS" Style="{StaticResource FieldGroupTitle}" />
+                    <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="72" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Beam" Style="{StaticResource FieldLabel}" />
+                        <TextBlock x:Name="BeamStatusText" Grid.Column="1" Text="Not connected" TextWrapping="Wrap" TextTrimming="None" />
+                        <TextBlock Grid.Row="1" Text="Ophir" Style="{StaticResource FieldLabel}" Margin="0,8,0,0" />
+                        <TextBlock x:Name="OphirStatusText" Grid.Row="1" Grid.Column="1" Text="Log file not selected" TextWrapping="Wrap" TextTrimming="None" Margin="0,8,0,0" />
+                        <TextBlock Grid.Row="2" Text="Last" Style="{StaticResource FieldLabel}" Margin="0,8,0,0" />
+                        <TextBlock x:Name="LastStatusText" Grid.Row="2" Grid.Column="1" Text="Application ready." TextWrapping="Wrap" TextTrimming="None" Margin="0,8,0,0" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="12" />
-                <RowDefinition Height="220" />
+                <RowDefinition Height="160" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Column="0" Grid.RowSpan="3" Style="{StaticResource Card}">
+            <Border Style="{StaticResource Card}">
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="Run Setup" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Text="Sources, thresholds, and export path"
-                                   Style="{StaticResource SectionCaption}" />
-                    </StackPanel>
-                    <Grid Grid.Row="2"
-                          Margin="0,0,6,12">
-                        <Grid.Resources>
-                            <Style x:Key="SetupFieldGroupTitle" TargetType="TextBlock" BasedOn="{StaticResource FieldGroupTitle}">
-                                <Setter Property="Margin" Value="0,10,0,6" />
-                            </Style>
-                            <Style x:Key="SetupFieldLabel" TargetType="TextBlock" BasedOn="{StaticResource FieldLabel}">
-                                <Setter Property="Margin" Value="0,0,0,2" />
-                            </Style>
-                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                <Setter Property="MinHeight" Value="32" />
-                                <Setter Property="Padding" Value="8,4" />
-                            </Style>
-                            <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-                                <Setter Property="MinHeight" Value="32" />
-                                <Setter Property="Padding" Value="6,3" />
-                            </Style>
-                            <Style x:Key="SetupSecondaryButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-                                <Setter Property="Height" Value="34" />
-                                <Setter Property="MinWidth" Value="84" />
-                                <Setter Property="Padding" Value="10,0" />
-                            </Style>
-                            <Style x:Key="SetupPrimaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
-                                <Setter Property="Height" Value="34" />
-                                <Setter Property="MinWidth" Value="84" />
-                                <Setter Property="Padding" Value="10,0" />
-                            </Style>
-                        </Grid.Resources>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="0,0,4,0">
-                            <TextBlock Text="Sources" Style="{StaticResource SetupFieldGroupTitle}" Margin="0,4,0,6" />
-                            <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
-
-                            <TextBlock Text="BeamGage" Style="{StaticResource SetupFieldLabel}" />
-                            <ComboBox x:Name="BeamSourceComboBox"
-                                      DisplayMemberPath="DisplayName"
-                                      SelectedValuePath="Key"
-                                      SelectionChanged="OnSourceSelectionChanged" />
-
-                            <TextBlock Text="BeamGage source" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,4" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="8" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="8" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ComboBox x:Name="BeamPhysicalSourceComboBox"
-                                          SelectionChanged="OnBeamGagePhysicalSourceSelectionChanged" />
-                                <Button x:Name="RefreshBeamGageSourcesButton"
-                                        Grid.Column="2"
-                                        Content="Scan"
-                                        Style="{StaticResource SetupSecondaryButton}"
-                                        Click="OnRefreshBeamGageSourcesClicked" />
-                                <Button x:Name="ReconnectBeamGageButton"
-                                        Grid.Column="4"
-                                        Content="Connect"
-                                        Style="{StaticResource SetupSecondaryButton}"
-                                        Click="OnReconnectBeamGageClicked" />
-                            </Grid>
-
-                            <TextBlock Text="Ophir / StarLab log" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,4" />
-                            <ComboBox x:Name="OphirSourceComboBox"
-                                      DisplayMemberPath="DisplayName"
-                                      SelectedValuePath="Key"
-                                      SelectionChanged="OnSourceSelectionChanged" />
-
-                            <TextBlock Text="StarLab log file" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,4" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="8" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="StarLabLogPathTextBox" />
-                                <Button x:Name="BrowseStarLabLogButton"
-                                        Grid.Column="2"
-                                        Content="Browse"
-                                        Style="{StaticResource SetupSecondaryButton}"
-                                        Click="OnBrowseStarLabLogClicked" />
-                            </Grid>
-
-                        <TextBlock Text="Acquisition" Style="{StaticResource SetupFieldGroupTitle}" />
-                        <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
-
-                        <TextBlock Text="Session" Style="{StaticResource SetupFieldLabel}" />
-                        <TextBox x:Name="SessionNameTextBox" Text="Prototype Session" />
-
-                        <TextBlock Text="Window" Style="{StaticResource SetupFieldLabel}" Margin="0,8,0,0" />
-                        <TextBox x:Name="WindowSizeTextBox" Text="20" />
-
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Enter %" Style="{StaticResource SetupFieldLabel}" />
-                                <TextBox x:Name="EnterThresholdTextBox" Text="0.5" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Exit %" Style="{StaticResource SetupFieldLabel}" />
-                                <TextBox x:Name="ExitThresholdTextBox" Text="1.0" />
-                            </StackPanel>
-                        </Grid>
-
-                        <TextBlock Text="Output" Style="{StaticResource SetupFieldGroupTitle}" />
-                        <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
-
-                        <TextBlock Text="Export" Style="{StaticResource SetupFieldLabel}" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="OutputPathTextBox" />
-                            <Button x:Name="BrowseButton"
-                                    Grid.Column="2"
-                                    Content="Browse"
-                                    Style="{StaticResource SetupSecondaryButton}"
-                                    Click="OnBrowseClicked" />
-                        </Grid>
-
-                        <TextBlock Text="Actions" Style="{StaticResource SetupFieldGroupTitle}" />
-                        <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
-
-                        <UniformGrid Columns="2" Margin="0,0,0,0">
-                            <Button x:Name="InitializeButton" Content="Initialize" Style="{StaticResource SetupSecondaryButton}" Margin="0,0,8,8" Click="OnInitializeClicked" />
-                            <Button x:Name="SelfTestButton" Content="Self-Test" Style="{StaticResource SetupSecondaryButton}" Margin="0,0,0,8" Click="OnSelfTestClicked" />
-                            <Button x:Name="BeamGageTestButton" Content="BeamGage Test" Style="{StaticResource SetupSecondaryButton}" Margin="0,0,8,8" Click="OnBeamGageSmokeTestClicked" />
-                            <Button x:Name="UsbDevicesTestButton" Content="USB Devices" Style="{StaticResource SetupSecondaryButton}" Margin="0,0,8,8" Click="OnUsbDevicesTestClicked" />
-                        </UniformGrid>
-
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="StartButton" Content="Start" Style="{StaticResource SetupPrimaryButton}" Click="OnStartClicked" />
-                            <Button x:Name="StopButton" Grid.Column="2" Content="Stop" Style="{StaticResource SetupSecondaryButton}" Click="OnStopClicked" />
-                        </Grid>
-                        </StackPanel>
-                        </ScrollViewer>
-                    </Grid>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="2" Grid.Row="0" Style="{StaticResource Card}">
-                <Grid>
-                    <Grid.Resources>
-                        <Style x:Key="LivePrimaryMetricValue" TargetType="TextBlock" BasedOn="{StaticResource LiveMetricValue}">
-                            <Setter Property="FontSize" Value="18" />
-                        </Style>
-                        <Style x:Key="LiveSecondaryMetricValue" TargetType="TextBlock" BasedOn="{StaticResource CompactMetricValue}">
-                            <Setter Property="FontSize" Value="14" />
-                            <Setter Property="LineHeight" Value="16" />
-                            <Setter Property="MaxHeight" Value="36" />
-                        </Style>
-                    </Grid.Resources>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="14" />
@@ -206,223 +162,99 @@
                     </Grid.RowDefinitions>
                     <StackPanel>
                         <TextBlock Text="Live Measurements" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Text="Independent source warm-up and current status"
-                                   Style="{StaticResource SectionCaption}" />
+                        <TextBlock Text="Current BeamGage and StarLab values" Style="{StaticResource SectionCaption}" />
                     </StackPanel>
 
-                    <UniformGrid Grid.Row="2" Columns="2" Rows="4">
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
+                    <UniformGrid Grid.Row="2" Columns="2" Rows="5">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8">
                             <StackPanel>
                                 <TextBlock Text="Beam Energy" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="BeamEnergyText" Text="-" Style="{StaticResource LivePrimaryMetricValue}" />
+                                <TextBlock x:Name="BeamEnergyText" Text="-" Style="{StaticResource LiveMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8">
                             <StackPanel>
                                 <TextBlock Text="Ophir Energy" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="OphirEnergyText" Text="-" Style="{StaticResource LivePrimaryMetricValue}" />
+                                <TextBlock x:Name="OphirEnergyText" Text="-" Style="{StaticResource LiveMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="10,8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8">
                             <StackPanel>
                                 <TextBlock Text="Beam Avg" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="BeamAverageText" Text="-" Style="{StaticResource LivePrimaryMetricValue}" />
+                                <TextBlock x:Name="BeamAverageText" Text="-" Style="{StaticResource LiveMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8">
                             <StackPanel>
                                 <TextBlock Text="Ophir Avg" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="OphirAverageText" Text="-" Style="{StaticResource LivePrimaryMetricValue}" />
+                                <TextBlock x:Name="OphirAverageText" Text="-" Style="{StaticResource LiveMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="10,8">
+                        <Border x:Name="BeamStabilityTile" Style="{StaticResource MetricTile}" Margin="0,0,8,8">
                             <StackPanel>
-                                <TextBlock Text="Stability" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="StabilityText" Text="-" Style="{StaticResource LiveSecondaryMetricValue}" />
+                                <TextBlock Text="Beam Stability" Style="{StaticResource FieldLabel}" />
+                                <TextBlock x:Name="BeamStabilityText" Text="-" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="10,8">
+                        <Border x:Name="OphirStabilityTile" Style="{StaticResource MetricTile}" Margin="0,0,0,8">
                             <StackPanel>
-                                <TextBlock Text="Stationary" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="StationaryEntriesText" Text="0" Style="{StaticResource LiveSecondaryMetricValue}" />
+                                <TextBlock Text="Ophir Stability" Style="{StaticResource FieldLabel}" />
+                                <TextBlock x:Name="OphirStabilityText" Text="-" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="10,8">
+                        <Border x:Name="OverallStabilityTile" Style="{StaticResource MetricTile}" Margin="0,0,8,8">
                             <StackPanel>
-                                <TextBlock Text="Record ID" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="RecordIdText" Text="-" Style="{StaticResource LiveSecondaryMetricValue}" />
+                                <TextBlock Text="Overall Stability" Style="{StaticResource FieldLabel}" />
+                                <TextBlock x:Name="StabilityText" Text="-" Style="{StaticResource CompactMetricValue}" />
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="10,8">
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8">
                             <StackPanel>
-                                <TextBlock Text="Updated" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="LastUpdateText" Text="-" Style="{StaticResource LiveSecondaryMetricValue}" />
+                                <TextBlock Text="Record" Style="{StaticResource FieldLabel}" />
+                                <TextBlock x:Name="RecordIdText" Text="-" Style="{StaticResource LiveMetricValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0">
+                            <StackPanel>
+                                <TextBlock Text="Last Update" Style="{StaticResource FieldLabel}" />
+                                <TextBlock x:Name="LastUpdateText" Text="-" Style="{StaticResource LiveMetricValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="Stationary Entries" Style="{StaticResource FieldLabel}" />
+                                <TextBlock x:Name="StationaryEntriesText" Text="0" Style="{StaticResource LiveMetricValue}" />
                             </StackPanel>
                         </Border>
                     </UniformGrid>
                 </Grid>
             </Border>
 
-            <Border Grid.Column="4" Grid.Row="0" Style="{StaticResource Card}">
+            <Border Grid.Row="2" Style="{StaticResource Card}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="12" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="Source Diagnostics" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Text="Runtime checks for selected hardware paths"
-                                   Style="{StaticResource SectionCaption}" />
-                    </StackPanel>
-                    <ScrollViewer Grid.Row="2"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Padding="0,10,0,0">
+                    <TextBlock Text="Session Review" Style="{StaticResource SectionTitle}" />
+                    <UniformGrid Grid.Row="2" Columns="4">
                         <StackPanel>
-                            <Border Style="{StaticResource MetricTile}" Padding="12" Margin="0,0,0,10">
-                                <StackPanel>
-                                    <TextBlock x:Name="BeamDiagnosticTitleText" Text="BeamGage" FontWeight="SemiBold" />
-                                    <TextBlock x:Name="BeamDiagnosticSummaryText" Text="-" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                    <TextBlock x:Name="BeamAcquisitionText" Text="-" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
-                                    <TextBlock Text="Checks" Style="{StaticResource FieldLabel}" Margin="0,10,0,4" />
-                                    <TextBox x:Name="BeamDiagnosticStepsText"
-                                             MinHeight="92"
-                                             FontFamily="Consolas"
-                                             FontSize="12"
-                                             TextWrapping="Wrap"
-                                             AcceptsReturn="True"
-                                             IsReadOnly="True"
-                                             VerticalScrollBarVisibility="Auto" />
-                                    <TextBlock Text="Details" Style="{StaticResource FieldLabel}" Margin="0,10,0,4" />
-                                    <TextBox x:Name="BeamDiagnosticDetailsText"
-                                             MinHeight="72"
-                                             FontFamily="Consolas"
-                                             FontSize="12"
-                                             TextWrapping="Wrap"
-                                             AcceptsReturn="True"
-                                             IsReadOnly="True"
-                                             VerticalScrollBarVisibility="Auto" />
-                                </StackPanel>
-                            </Border>
-
-                            <Border Style="{StaticResource MetricTile}" Padding="12" Margin="0,0,0,10">
-                                <StackPanel>
-                                    <TextBlock x:Name="OphirDiagnosticTitleText" Text="Ophir" FontWeight="SemiBold" />
-                                    <TextBlock x:Name="OphirDiagnosticSummaryText" Text="-" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                    <TextBlock x:Name="OphirAcquisitionText" Text="-" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
-                                    <TextBlock Text="Checks" Style="{StaticResource FieldLabel}" Margin="0,10,0,4" />
-                                    <TextBox x:Name="OphirDiagnosticStepsText"
-                                             MinHeight="92"
-                                             FontFamily="Consolas"
-                                             FontSize="12"
-                                             TextWrapping="Wrap"
-                                             AcceptsReturn="True"
-                                             IsReadOnly="True"
-                                             VerticalScrollBarVisibility="Auto" />
-                                    <TextBlock Text="Details" Style="{StaticResource FieldLabel}" Margin="0,10,0,4" />
-                                    <TextBox x:Name="OphirDiagnosticDetailsText"
-                                             MinHeight="72"
-                                             FontFamily="Consolas"
-                                             FontSize="12"
-                                             TextWrapping="Wrap"
-                                             AcceptsReturn="True"
-                                             IsReadOnly="True"
-                                             VerticalScrollBarVisibility="Auto" />
-                                </StackPanel>
-                            </Border>
-
-                            <Border Style="{StaticResource MetricTile}" Padding="12">
-                                <StackPanel>
-                                    <TextBlock Text="Raw Report" FontWeight="SemiBold" />
-                                    <TextBlock Text="Latest self-test or generated diagnostic report"
-                                               Style="{StaticResource SectionCaption}" />
-                                    <TextBox x:Name="DiagnosticsReportTextBox"
-                                             Margin="0,10,0,0"
-                                             MinHeight="110"
-                                             FontFamily="Consolas"
-                                             FontSize="12"
-                                             TextWrapping="Wrap"
-                                             AcceptsReturn="True"
-                                             IsReadOnly="True"
-                                             VerticalScrollBarVisibility="Auto" />
-                                </StackPanel>
-                            </Border>
+                            <TextBlock Text="Samples" Style="{StaticResource FieldLabel}" />
+                            <TextBlock x:Name="SummarySamplesText" Text="0" Style="{StaticResource MetricValue}" />
                         </StackPanel>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="2" Grid.Row="2" Style="{StaticResource Card}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Event Log"
-                                   Style="{StaticResource SectionTitle}"
-                                   VerticalAlignment="Center" />
-                        <Button x:Name="ClearEventsButton"
-                                Grid.Column="1"
-                                Content="Clear"
-                                Style="{StaticResource SecondaryButton}"
-                                Click="OnClearEventsClicked" />
-                    </Grid>
-                    <TextBox x:Name="EventsTextBox"
-                             Grid.Row="2"
-                             FontFamily="Consolas"
-                             FontSize="12"
-                             TextWrapping="NoWrap"
-                             AcceptsReturn="True"
-                             IsReadOnly="True"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Auto" />
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="4" Grid.Row="2" Style="{StaticResource Card}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="8" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="Session Review" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Text="Completed session totals"
-                                   Style="{StaticResource SectionCaption}" />
-                    </StackPanel>
-                    <UniformGrid Grid.Row="2" Columns="2" Rows="2">
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,8" Padding="8">
-                            <StackPanel>
-                                <TextBlock Text="Samples" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="SummarySamplesText" Text="0" Style="{StaticResource CompactMetricValue}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,8" Padding="8">
-                            <StackPanel>
-                                <TextBlock Text="Segments" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="SummarySegmentsText" Text="0" Style="{StaticResource CompactMetricValue}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,8,0" Padding="8">
-                            <StackPanel>
-                                <TextBlock Text="Events" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="SummaryEventsCountText" Text="0" Style="{StaticResource CompactMetricValue}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource MetricTile}" Margin="0,0,0,0" Padding="8">
-                            <StackPanel>
-                                <TextBlock Text="Faults" Style="{StaticResource FieldLabel}" />
-                                <TextBlock x:Name="SummaryFaultsText" Text="0" Style="{StaticResource CompactMetricValue}" />
-                            </StackPanel>
-                        </Border>
+                        <StackPanel>
+                            <TextBlock Text="Events" Style="{StaticResource FieldLabel}" />
+                            <TextBlock x:Name="SummaryEventsCountText" Text="0" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Segments" Style="{StaticResource FieldLabel}" />
+                            <TextBlock x:Name="SummarySegmentsText" Text="0" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Faults" Style="{StaticResource FieldLabel}" />
+                            <TextBlock x:Name="SummaryFaultsText" Text="0" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
                     </UniformGrid>
                 </Grid>
             </Border>

@@ -13,23 +13,17 @@ namespace LaserEnergyMonitor.Wpf
 {
     public partial class MainWindow : Window
     {
-        private const int MaxEventEntries = 5;
         private static readonly TimeSpan LiveUiUpdateInterval = TimeSpan.FromMilliseconds(100);
-        private static readonly TimeSpan EventLogUpdateInterval = TimeSpan.FromMilliseconds(250);
         private readonly MeasurementSessionRuntimeFactory _runtimeFactory;
         private readonly string _defaultOutputDir;
-        private readonly List<string> _eventLines = new List<string>();
         private readonly object _liveUpdateGate = new object();
         private readonly DispatcherTimer _liveUpdateTimer;
-        private readonly DispatcherTimer _eventLogTimer;
         private MeasurementSessionService _service;
         private LiveMeasurementSnapshot _pendingLiveSnapshot;
-        private string _activeFirstSourceKey;
-        private string _activeSecondSourceKey;
+        private string _activeBeamDataSource;
         private string _activeStarLabLogPath;
         private int _stationaryEntries;
         private bool _liveUpdatePumpActive;
-        private bool _eventLogDirty;
         private bool _isBindingStartupData;
 
         public MainWindow(MeasurementSessionRuntimeFactory runtimeFactory, string defaultOutputDir)
@@ -41,21 +35,17 @@ namespace LaserEnergyMonitor.Wpf
             _liveUpdateTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher);
             _liveUpdateTimer.Interval = LiveUiUpdateInterval;
             _liveUpdateTimer.Tick += OnLiveUpdateTimerTick;
-            _eventLogTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher);
-            _eventLogTimer.Interval = EventLogUpdateInterval;
-            _eventLogTimer.Tick += OnEventLogTimerTick;
+
             BindStartupData();
             UpdateState(MeasurementSessionState.Idle);
             ResetLiveValues();
             ResetSessionReview();
-            RefreshSourceDiagnostics();
-            AddEvent("Application ready.");
+            AddStatus("Application ready.");
         }
 
         protected override void OnClosed(EventArgs e)
         {
             _liveUpdateTimer.Stop();
-            _eventLogTimer.Stop();
             ReplaceService(null);
             base.OnClosed(e);
         }
@@ -65,10 +55,6 @@ namespace LaserEnergyMonitor.Wpf
             _isBindingStartupData = true;
             try
             {
-                BeamSourceComboBox.ItemsSource = _runtimeFactory.FirstSourceOptions;
-                OphirSourceComboBox.ItemsSource = _runtimeFactory.SecondSourceOptions;
-                SelectSource(BeamSourceComboBox, "beam-sdk");
-                SelectSource(OphirSourceComboBox, "starlab-log");
                 BindBeamGagePhysicalDataSources(
                     string.IsNullOrWhiteSpace(_runtimeFactory.ConfiguredBeamGageDataSource)
                         ? new string[0]
@@ -79,42 +65,12 @@ namespace LaserEnergyMonitor.Wpf
                 OutputPathTextBox.ToolTip = OutputPathTextBox.Text;
                 StarLabLogPathTextBox.Text = _runtimeFactory.ConfiguredStarLabLogPath;
                 StarLabLogPathTextBox.ToolTip = StarLabLogPathTextBox.Text;
+                UpdateOphirStatus();
             }
             finally
             {
                 _isBindingStartupData = false;
             }
-
-            UpdateStarLabLogControls();
-        }
-
-        private static void SelectSource(System.Windows.Controls.ComboBox comboBox, string key)
-        {
-            for (int i = 0; i < comboBox.Items.Count; i++)
-            {
-                MeasurementSourceOption option = comboBox.Items[i] as MeasurementSourceOption;
-                if (option != null && string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase))
-                {
-                    comboBox.SelectedIndex = i;
-                    return;
-                }
-            }
-
-            if (comboBox.Items.Count > 0)
-            {
-                comboBox.SelectedIndex = 0;
-            }
-        }
-
-        private void OnInitializeClicked(object sender, RoutedEventArgs e)
-        {
-            RunUiAction(
-                "Initialization error",
-                delegate
-                {
-                    EnsureInitializedService(BuildSettings(), true);
-                    AddEvent("Sources initialized.");
-                });
         }
 
         private void OnStartClicked(object sender, RoutedEventArgs e)
@@ -125,7 +81,7 @@ namespace LaserEnergyMonitor.Wpf
                 {
                     MeasurementSessionService service = EnsureInitializedService(BuildSettings(), false);
                     service.Start();
-                    AddEvent("Session started.");
+                    AddStatus("Session started.");
                 });
         }
 
@@ -141,48 +97,8 @@ namespace LaserEnergyMonitor.Wpf
                     }
 
                     _service.Stop();
-                    AddEvent("Session stopped.");
+                    AddStatus("Session stopped.");
                     ResetLiveValues();
-                });
-        }
-
-        private void OnSelfTestClicked(object sender, RoutedEventArgs e)
-        {
-            RunUiAction(
-                "Self-test error",
-                delegate
-                {
-                    string report = _runtimeFactory.RunSelfTest(GetSelectedSourceKey(BeamSourceComboBox), GetSelectedSourceKey(OphirSourceComboBox));
-                    DiagnosticsReportTextBox.Text = report;
-                    RefreshSourceDiagnostics();
-                    AddEvent("Hardware self-test completed.");
-                    MessageBox.Show(this, report, "Hardware Self-Test", MessageBoxButton.OK, MessageBoxImage.Information);
-                });
-        }
-
-        private void OnUsbDevicesTestClicked(object sender, RoutedEventArgs e)
-        {
-            RunUiAction(
-                "USB inventory error",
-                delegate
-                {
-                    string report = _runtimeFactory.RunUsbInventory();
-                    DiagnosticsReportTextBox.Text = report;
-                    AddEvent("USB inventory completed.");
-                    MessageBox.Show(this, report, "USB Devices", MessageBoxButton.OK, MessageBoxImage.Information);
-                });
-        }
-
-        private void OnBeamGageSmokeTestClicked(object sender, RoutedEventArgs e)
-        {
-            RunUiAction(
-                "BeamGage smoke-test error",
-                delegate
-                {
-                    string report = _runtimeFactory.RunBeamGageSmokeTest(GetSelectedSourceKey(BeamSourceComboBox));
-                    DiagnosticsReportTextBox.Text = report;
-                    AddEvent("BeamGage smoke-test completed.");
-                    MessageBox.Show(this, report, "BeamGage Smoke-Test", MessageBoxButton.OK, MessageBoxImage.Information);
                 });
         }
 
@@ -192,11 +108,10 @@ namespace LaserEnergyMonitor.Wpf
                 "BeamGage source scan error",
                 delegate
                 {
-                    EnsureBeamGageSdkSelected();
                     DisconnectServiceForBeamGageReconnection();
                     IReadOnlyList<string> dataSources = _runtimeFactory.DiscoverBeamGagePhysicalDataSources();
                     BindBeamGagePhysicalDataSources(dataSources, _runtimeFactory.ConfiguredBeamGageDataSource);
-                    AddEvent("BeamGage source scan completed.");
+                    AddStatus("BeamGage source scan completed.");
                 });
         }
 
@@ -206,7 +121,6 @@ namespace LaserEnergyMonitor.Wpf
                 "BeamGage reconnect error",
                 delegate
                 {
-                    EnsureBeamGageSdkSelected();
                     string selectedDataSource = BeamPhysicalSourceComboBox.SelectedItem as string;
                     if (string.IsNullOrWhiteSpace(selectedDataSource))
                     {
@@ -216,7 +130,7 @@ namespace LaserEnergyMonitor.Wpf
                     DisconnectServiceForBeamGageReconnection();
                     _runtimeFactory.SelectBeamGagePhysicalDataSource(selectedDataSource);
                     EnsureInitializedService(BuildSettings(), true);
-                    AddEvent("BeamGage source connected: " + selectedDataSource);
+                    AddStatus("BeamGage source connected: " + selectedDataSource);
                 });
         }
 
@@ -256,35 +170,10 @@ namespace LaserEnergyMonitor.Wpf
                 StarLabLogPathTextBox.Text = dialog.FileName;
                 StarLabLogPathTextBox.ToolTip = dialog.FileName;
                 SynchronizeStarLabLogPath();
-                RefreshSourceDiagnostics();
+                UpdateOphirStatus();
+                DisconnectServiceForSourceChange();
+                AddStatus("StarLab log selected: " + dialog.FileName);
             }
-        }
-
-        private void OnClearEventsClicked(object sender, RoutedEventArgs e)
-        {
-            _eventLines.Clear();
-            _eventLogDirty = false;
-            if (_eventLogTimer != null)
-            {
-                _eventLogTimer.Stop();
-            }
-
-            if (EventsTextBox != null)
-            {
-                EventsTextBox.Clear();
-            }
-        }
-
-        private void OnSourceSelectionChanged(object sender, EventArgs e)
-        {
-            if (_isBindingStartupData)
-            {
-                return;
-            }
-
-            RefreshSourceDiagnostics();
-            UpdateBeamGagePhysicalControls();
-            UpdateStarLabLogControls();
         }
 
         private void OnBeamGagePhysicalSourceSelectionChanged(object sender, EventArgs e)
@@ -305,6 +194,7 @@ namespace LaserEnergyMonitor.Wpf
             }
             catch (Exception ex)
             {
+                AddStatus(ex.Message, true);
                 MessageBox.Show(this, ex.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -312,12 +202,16 @@ namespace LaserEnergyMonitor.Wpf
         private MeasurementSessionService EnsureInitializedService(SessionSettings settings, bool forceRecreate)
         {
             SynchronizeStarLabLogPath();
-            string firstKey = GetSelectedSourceKey(BeamSourceComboBox);
-            string secondKey = GetSelectedSourceKey(OphirSourceComboBox);
+            string beamDataSource = _runtimeFactory.ConfiguredBeamGageDataSource;
             string starLabLogPath = StarLabLogPathTextBox.Text;
+
+            if (string.IsNullOrWhiteSpace(beamDataSource))
+            {
+                throw new InvalidOperationException("Scan and connect a BeamGage source before starting.");
+            }
+
             bool selectionChanged =
-                !string.Equals(firstKey, _activeFirstSourceKey, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(secondKey, _activeSecondSourceKey, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(beamDataSource, _activeBeamDataSource, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(starLabLogPath, _activeStarLabLogPath, StringComparison.OrdinalIgnoreCase);
 
             if (_service != null && IsSessionConfigurationLocked(_service.State))
@@ -330,17 +224,18 @@ namespace LaserEnergyMonitor.Wpf
                 return _service;
             }
 
-            MeasurementSessionService newService = _runtimeFactory.Create(firstKey, secondKey);
+            MeasurementSessionService newService = _runtimeFactory.Create();
             try
             {
                 AttachServiceEvents(newService);
                 newService.Initialize(settings);
                 ReplaceService(newService);
                 ResetSessionReview();
-                _activeFirstSourceKey = firstKey;
-                _activeSecondSourceKey = secondKey;
+                _activeBeamDataSource = beamDataSource;
                 _activeStarLabLogPath = starLabLogPath;
                 UpdateState(_service.State);
+                UpdateBeamStatus("Connected: " + beamDataSource, false);
+                UpdateOphirStatus();
                 return _service;
             }
             catch
@@ -402,9 +297,7 @@ namespace LaserEnergyMonitor.Wpf
 
             if (startPump)
             {
-                Dispatcher.BeginInvoke(
-                    new Action(EnsureLiveUpdatePumpRunning),
-                    DispatcherPriority.Background);
+                Dispatcher.BeginInvoke(new Action(EnsureLiveUpdatePumpRunning), DispatcherPriority.Background);
             }
         }
 
@@ -453,7 +346,7 @@ namespace LaserEnergyMonitor.Wpf
                             StationaryEntriesText.Text = _stationaryEntries.ToString(CultureInfo.InvariantCulture);
                         }
 
-                        AddEvent(FormatEvent(sessionEvent));
+                        AddStatus(FormatEvent(sessionEvent));
                     }));
         }
 
@@ -486,12 +379,6 @@ namespace LaserEnergyMonitor.Wpf
             return double.TryParse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed) ? parsed : fallback;
         }
 
-        private static string GetSelectedSourceKey(System.Windows.Controls.ComboBox comboBox)
-        {
-            MeasurementSourceOption option = comboBox != null ? comboBox.SelectedItem as MeasurementSourceOption : null;
-            return option != null ? option.Key : string.Empty;
-        }
-
         private void BindBeamGagePhysicalDataSources(IReadOnlyList<string> dataSources, string preferredDataSource)
         {
             BeamPhysicalSourceComboBox.ItemsSource = dataSources ?? new string[0];
@@ -513,19 +400,7 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             UpdateBeamGagePhysicalControls();
-        }
-
-        private void EnsureBeamGageSdkSelected()
-        {
-            if (!IsBeamGageSdkSelected())
-            {
-                throw new InvalidOperationException("Select BeamGage SDK before scanning or connecting a BeamGage source.");
-            }
-        }
-
-        private bool IsBeamGageSdkSelected()
-        {
-            return string.Equals(GetSelectedSourceKey(BeamSourceComboBox), "beam-sdk", StringComparison.OrdinalIgnoreCase);
+            UpdateBeamStatus();
         }
 
         private void DisconnectServiceForBeamGageReconnection()
@@ -536,8 +411,20 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             ReplaceService(null);
-            _activeFirstSourceKey = null;
-            _activeSecondSourceKey = null;
+            _activeBeamDataSource = null;
+            _activeStarLabLogPath = null;
+            UpdateState(MeasurementSessionState.Idle);
+        }
+
+        private void DisconnectServiceForSourceChange()
+        {
+            if (_service != null && IsSessionConfigurationLocked(_service.State))
+            {
+                throw new InvalidOperationException("Stop the active measurement session before changing sources.");
+            }
+
+            ReplaceService(null);
+            _activeBeamDataSource = null;
             _activeStarLabLogPath = null;
             UpdateState(MeasurementSessionState.Idle);
         }
@@ -552,31 +439,9 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             bool locked = _service != null && IsSessionConfigurationLocked(_service.State);
-            bool sdkSelected = IsBeamGageSdkSelected();
-            BeamPhysicalSourceComboBox.IsEnabled = sdkSelected && !locked;
-            RefreshBeamGageSourcesButton.IsEnabled = sdkSelected && !locked;
-            ReconnectBeamGageButton.IsEnabled =
-                sdkSelected &&
-                !locked &&
-                BeamPhysicalSourceComboBox.SelectedItem is string;
-        }
-
-        private void UpdateStarLabLogControls()
-        {
-            if (StarLabLogPathTextBox == null || BrowseStarLabLogButton == null)
-            {
-                return;
-            }
-
-            bool locked = _service != null && IsSessionConfigurationLocked(_service.State);
-            bool starLabSelected = IsStarLabLogSelected();
-            StarLabLogPathTextBox.IsReadOnly = locked || !starLabSelected;
-            BrowseStarLabLogButton.IsEnabled = starLabSelected && !locked;
-        }
-
-        private bool IsStarLabLogSelected()
-        {
-            return string.Equals(GetSelectedSourceKey(OphirSourceComboBox), "starlab-log", StringComparison.OrdinalIgnoreCase);
+            BeamPhysicalSourceComboBox.IsEnabled = !locked;
+            RefreshBeamGageSourcesButton.IsEnabled = !locked;
+            ReconnectBeamGageButton.IsEnabled = !locked && BeamPhysicalSourceComboBox.SelectedItem is string;
         }
 
         private void SynchronizeStarLabLogPath()
@@ -589,47 +454,7 @@ namespace LaserEnergyMonitor.Wpf
             string path = StarLabLogPathTextBox.Text ?? string.Empty;
             StarLabLogPathTextBox.ToolTip = path;
             _runtimeFactory.SelectStarLabLogFile(path);
-        }
-
-        private void RefreshSourceDiagnostics()
-        {
-            if (BeamSourceComboBox == null || OphirSourceComboBox == null || DiagnosticsReportTextBox == null)
-            {
-                return;
-            }
-
-            SynchronizeStarLabLogPath();
-            string firstKey = GetSelectedSourceKey(BeamSourceComboBox);
-            string secondKey = GetSelectedSourceKey(OphirSourceComboBox);
-            if (string.IsNullOrWhiteSpace(firstKey) || string.IsNullOrWhiteSpace(secondKey))
-            {
-                return;
-            }
-
-            DiagnosticsReportTextBox.Text = _runtimeFactory.BuildDiagnostics(firstKey, secondKey);
-
-            var diagnostics = _runtimeFactory.GetDiagnostics(firstKey, secondKey);
-            if (diagnostics.Count > 0)
-            {
-                BindDiagnosticCard(
-                    diagnostics[0],
-                    BeamDiagnosticTitleText,
-                    BeamDiagnosticSummaryText,
-                    BeamAcquisitionText,
-                    BeamDiagnosticStepsText,
-                    BeamDiagnosticDetailsText);
-            }
-
-            if (diagnostics.Count > 1)
-            {
-                BindDiagnosticCard(
-                    diagnostics[1],
-                    OphirDiagnosticTitleText,
-                    OphirDiagnosticSummaryText,
-                    OphirAcquisitionText,
-                    OphirDiagnosticStepsText,
-                    OphirDiagnosticDetailsText);
-            }
+            UpdateOphirStatus();
         }
 
         private void UpdateState(MeasurementSessionState state)
@@ -642,20 +467,15 @@ namespace LaserEnergyMonitor.Wpf
             StopButton.IsEnabled =
                 state == MeasurementSessionState.Measuring ||
                 state == MeasurementSessionState.Stationary;
-            InitializeButton.IsEnabled = !locked;
-            SelfTestButton.IsEnabled = !locked;
-            UsbDevicesTestButton.IsEnabled = !locked;
-            BeamGageTestButton.IsEnabled = !locked;
-            BeamSourceComboBox.IsEnabled = !locked;
-            OphirSourceComboBox.IsEnabled = !locked;
             SessionNameTextBox.IsReadOnly = locked;
             WindowSizeTextBox.IsReadOnly = locked;
             EnterThresholdTextBox.IsReadOnly = locked;
             ExitThresholdTextBox.IsReadOnly = locked;
             OutputPathTextBox.IsReadOnly = locked;
+            StarLabLogPathTextBox.IsReadOnly = locked;
             BrowseButton.IsEnabled = !locked;
+            BrowseStarLabLogButton.IsEnabled = !locked;
             UpdateBeamGagePhysicalControls();
-            UpdateStarLabLogControls();
             if (state == MeasurementSessionState.Idle || state == MeasurementSessionState.Initialized)
             {
                 ResetLiveValues();
@@ -681,6 +501,9 @@ namespace LaserEnergyMonitor.Wpf
             BeamAverageText.Text = FormatEnergy(snapshot.FirstAverage);
             OphirAverageText.Text = FormatEnergy(snapshot.SecondAverage);
             StabilityText.Text = FormatStability(snapshot);
+            UpdateStabilityIndicator(BeamStabilityTile, BeamStabilityText, snapshot.FirstStabilityMetric);
+            UpdateStabilityIndicator(OphirStabilityTile, OphirStabilityText, snapshot.SecondStabilityMetric);
+            UpdateStabilityIndicator(OverallStabilityTile, StabilityText, snapshot.StabilityMetric);
         }
 
         private void ResetLiveValues()
@@ -703,6 +526,9 @@ namespace LaserEnergyMonitor.Wpf
             BeamAverageText.Text = "-";
             OphirAverageText.Text = "-";
             StabilityText.Text = "-";
+            ResetStabilityIndicator(BeamStabilityTile, BeamStabilityText);
+            ResetStabilityIndicator(OphirStabilityTile, OphirStabilityText);
+            ResetStabilityIndicator(OverallStabilityTile, StabilityText);
             _stationaryEntries = 0;
             StationaryEntriesText.Text = "0";
         }
@@ -732,50 +558,87 @@ namespace LaserEnergyMonitor.Wpf
                 return "-";
             }
 
-            if (!snapshot.FirstStabilityMetric.HasValue || !snapshot.SecondStabilityMetric.HasValue)
-            {
-                return FormatDouble(snapshot.StabilityMetric);
-            }
-
-            return FormatDouble(snapshot.StabilityMetric) +
-                " B " + FormatDouble(snapshot.FirstStabilityMetric) +
-                " O " + FormatDouble(snapshot.SecondStabilityMetric);
+            return FormatPercent(snapshot.StabilityMetric);
         }
 
-        private void AddEvent(string message)
+        private static string FormatPercent(double? value)
         {
-            _eventLines.Insert(0, DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + "  " + message);
-            while (_eventLines.Count > MaxEventEntries)
-            {
-                _eventLines.RemoveAt(_eventLines.Count - 1);
-            }
-
-            _eventLogDirty = true;
-            if (_eventLogTimer != null && !_eventLogTimer.IsEnabled)
-            {
-                _eventLogTimer.Start();
-            }
+            return value.HasValue ? value.Value.ToString("0.0000", CultureInfo.InvariantCulture) + "%" : "-";
         }
 
-        private void OnEventLogTimerTick(object sender, EventArgs e)
+        private void UpdateStabilityIndicator(System.Windows.Controls.Border tile, System.Windows.Controls.TextBlock target, double? metric)
         {
-            FlushEventLog();
-        }
-
-        private void FlushEventLog()
-        {
-            if (!_eventLogDirty)
+            if (target == null)
             {
-                _eventLogTimer.Stop();
                 return;
             }
 
-            _eventLogDirty = false;
-            if (EventsTextBox != null)
+            if (!metric.HasValue)
             {
-                EventsTextBox.Text = string.Join(Environment.NewLine, _eventLines);
-                EventsTextBox.ScrollToHome();
+                target.Text = "Warming up";
+                target.Foreground = GetBrush("StatusNeutralTextBrush");
+                ApplyStabilityBrushes(tile, "StatusNeutralBackgroundBrush", "StatusNeutralBorderBrush");
+                return;
             }
+
+            double enterThreshold = ParseDouble(EnterThresholdTextBox.Text, OperatorSessionSettingsPolicy.DefaultEnterThresholdPercent);
+            double exitThreshold = ParseDouble(ExitThresholdTextBox.Text, OperatorSessionSettingsPolicy.DefaultExitThresholdPercent);
+            if (exitThreshold < enterThreshold)
+            {
+                exitThreshold = enterThreshold;
+            }
+
+            string label;
+            string brushKey;
+            string backgroundBrushKey;
+            string borderBrushKey;
+            if (metric.Value <= enterThreshold)
+            {
+                label = "Stable";
+                brushKey = "StatusSuccessTextBrush";
+                backgroundBrushKey = "StatusSuccessBackgroundBrush";
+                borderBrushKey = "StatusSuccessBorderBrush";
+            }
+            else if (metric.Value <= exitThreshold)
+            {
+                label = "Near";
+                brushKey = "StatusWarningTextBrush";
+                backgroundBrushKey = "StatusWarningBackgroundBrush";
+                borderBrushKey = "StatusWarningBorderBrush";
+            }
+            else
+            {
+                label = "Unstable";
+                brushKey = "StatusDangerTextBrush";
+                backgroundBrushKey = "StatusDangerBackgroundBrush";
+                borderBrushKey = "StatusDangerBorderBrush";
+            }
+
+            target.Text = FormatPercent(metric) + " " + label;
+            target.Foreground = GetBrush(brushKey);
+            ApplyStabilityBrushes(tile, backgroundBrushKey, borderBrushKey);
+        }
+
+        private void ResetStabilityIndicator(System.Windows.Controls.Border tile, System.Windows.Controls.TextBlock target)
+        {
+            if (target != null)
+            {
+                target.Text = "-";
+                target.Foreground = GetBrush("TextBrush");
+            }
+
+            ApplyStabilityBrushes(tile, "PanelAltBrush", "LineBrush");
+        }
+
+        private void ApplyStabilityBrushes(System.Windows.Controls.Border tile, string backgroundBrushKey, string borderBrushKey)
+        {
+            if (tile == null)
+            {
+                return;
+            }
+
+            tile.Background = GetBrush(backgroundBrushKey);
+            tile.BorderBrush = GetBrush(borderBrushKey);
         }
 
         private static string FormatEvent(SessionEvent sessionEvent)
@@ -807,70 +670,54 @@ namespace LaserEnergyMonitor.Wpf
             SummaryFaultsText.Text = summary.FaultCount.ToString(CultureInfo.InvariantCulture);
         }
 
-        private void BindDiagnosticCard(
-            MeasurementSourceDiagnostic diagnostic,
-            System.Windows.Controls.TextBlock titleText,
-            System.Windows.Controls.TextBlock summaryText,
-            System.Windows.Controls.TextBlock acquisitionText,
-            System.Windows.Controls.TextBox stepsText,
-            System.Windows.Controls.TextBox detailsText)
+        private void UpdateBeamStatus()
         {
-            MeasurementSourceRuntimeProbeResult probe = diagnostic != null ? diagnostic.Probe : null;
-            bool dependencyAvailable = probe != null && probe.DependencyAvailable;
-
-            titleText.Text = string.Format(
-                CultureInfo.InvariantCulture,
-                "{0}: {1}",
-                diagnostic != null ? diagnostic.SlotName : "Source",
-                diagnostic != null ? diagnostic.DisplayName : "Unavailable");
-            titleText.Foreground = dependencyAvailable ? GetBrush("StatusSuccessTextBrush") : GetBrush("StatusDangerTextBrush");
-            summaryText.Text = probe != null ? probe.Summary : "No diagnostic data available.";
-            acquisitionText.Text =
-                diagnostic != null && diagnostic.IsImplemented
-                    ? "Acquisition available in this build."
-                    : "Acquisition not wired in this build.";
-
-            stepsText.Text = BuildStepsText(probe);
-            detailsText.Text = probe != null && !string.IsNullOrWhiteSpace(probe.Details)
-                ? probe.Details
-                : "No additional details were reported.";
+            string selected = BeamPhysicalSourceComboBox != null ? BeamPhysicalSourceComboBox.SelectedItem as string : null;
+            string configured = _runtimeFactory.ConfiguredBeamGageDataSource;
+            if (!string.IsNullOrWhiteSpace(configured))
+            {
+                UpdateBeamStatus("Connected: " + configured, false);
+            }
+            else if (!string.IsNullOrWhiteSpace(selected))
+            {
+                UpdateBeamStatus("Selected: " + selected, false);
+            }
+            else
+            {
+                UpdateBeamStatus("Scan BeamGage sources.", true);
+            }
         }
 
-        private static string BuildStepsText(MeasurementSourceRuntimeProbeResult probe)
+        private void UpdateBeamStatus(string message, bool warning)
         {
-            if (probe == null || probe.Steps == null || probe.Steps.Count == 0)
-            {
-                return "No probe steps were reported.";
-            }
-
-            List<string> lines = new List<string>(probe.Steps.Count);
-            for (int i = 0; i < probe.Steps.Count; i++)
-            {
-                lines.Add(FormatStep(probe.Steps[i]));
-            }
-
-            return string.Join(Environment.NewLine, lines);
+            BeamStatusText.Text = message;
+            BeamStatusText.Foreground = warning ? GetBrush("StatusWarningTextBrush") : GetBrush("StatusSuccessTextBrush");
         }
 
-        private static string FormatStep(MeasurementSourceRuntimeProbeStep step)
+        private void UpdateOphirStatus()
         {
-            if (step == null)
+            string path = StarLabLogPathTextBox != null ? StarLabLogPathTextBox.Text : string.Empty;
+            if (string.IsNullOrWhiteSpace(path))
             {
-                return "- [UNKNOWN] Step data is missing.";
+                OphirStatusText.Text = "Select StarLab Data_log.txt.";
+                OphirStatusText.Foreground = GetBrush("StatusWarningTextBrush");
+                return;
             }
 
-            if (string.IsNullOrWhiteSpace(step.Details))
-            {
-                return string.Format(CultureInfo.InvariantCulture, "- [{0}] {1}", step.Status ?? "UNKNOWN", step.Name ?? "Step");
-            }
-
-            return string.Format(
-                CultureInfo.InvariantCulture,
-                "- [{0}] {1}: {2}",
-                step.Status ?? "UNKNOWN",
-                step.Name ?? "Step",
-                step.Details);
+            bool exists = File.Exists(path);
+            OphirStatusText.Text = exists ? "Ready: " + path : "Waiting for file: " + path;
+            OphirStatusText.Foreground = exists ? GetBrush("StatusSuccessTextBrush") : GetBrush("StatusWarningTextBrush");
         }
 
+        private void AddStatus(string message)
+        {
+            AddStatus(message, false);
+        }
+
+        private void AddStatus(string message, bool error)
+        {
+            LastStatusText.Text = DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + "  " + message;
+            LastStatusText.Foreground = error ? GetBrush("StatusDangerTextBrush") : GetBrush("StatusNeutralTextBrush");
+        }
     }
 }

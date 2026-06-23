@@ -15,7 +15,6 @@ laser-energy-monitor/
   tests/
     LaserEnergyMonitor.Tests/
   tools/
-    BeamGageVendorProbe/
     StarLabLogSimulator/
   LaserEnergyMonitor.sln
 ```
@@ -24,7 +23,7 @@ laser-energy-monitor/
 
 ### `LaserEnergyMonitor.Wpf`
 
-WPF-приложение оператора. Содержит экран подключения, выбор BeamGage source, выбор StarLab log file, запуск сессии, диагностику и отображение текущих значений.
+WPF-приложение оператора. Содержит экран подключения, выбор BeamGage source, выбор StarLab log file, запуск сессии и отображение текущих значений.
 
 ### `LaserEnergyMonitor.Application`
 
@@ -60,5 +59,4 @@ Unit-тесты домена, application-слоя, логирования, Beam
 
 ## Инструменты
 
-- `BeamGageVendorProbe` - отдельная диагностика vendor automation.
 - `StarLabLogSimulator` - генератор `Data_log.txt` для проверки Ophir log-file режима без прибора.

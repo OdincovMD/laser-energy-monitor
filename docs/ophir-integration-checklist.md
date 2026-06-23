@@ -10,9 +10,7 @@
 
 ## Laser Energy Monitor
 
-- В блоке Ophir выбран `StarLab Log File`.
-- Выбран тот же `Data_log.txt`, который обновляет StarLab.
-- `Self-Test` видит файл и колонку энергии.
+- В блоке Ophir выбран тот же `Data_log.txt`, который обновляет StarLab.
 - Во время сессии значение Ophir обновляется.
 - Excel содержит разные значения Ophir в `RawData`.
 
