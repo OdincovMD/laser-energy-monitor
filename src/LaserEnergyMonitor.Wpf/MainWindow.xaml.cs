@@ -2,12 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using LaserEnergyMonitor.Application;
 using LaserEnergyMonitor.Domain;
+using LaserEnergyMonitor.Infrastructure.Excel;
 using Microsoft.Win32;
+using WpfLine = System.Windows.Shapes.Line;
+using WpfPolyline = System.Windows.Shapes.Polyline;
 
 namespace LaserEnergyMonitor.Wpf
 {
@@ -18,8 +23,12 @@ namespace LaserEnergyMonitor.Wpf
         private readonly string _defaultOutputDir;
         private readonly object _liveUpdateGate = new object();
         private readonly DispatcherTimer _liveUpdateTimer;
+        private readonly MeasurementAnalyticsWorkbookReader _analyticsReader;
+        private readonly MeasurementAnalyticsAnalyzer _analyticsAnalyzer;
+        private readonly MeasurementAnalyticsWorkbookExporter _analyticsExporter;
         private MeasurementSessionService _service;
         private LiveMeasurementSnapshot _pendingLiveSnapshot;
+        private AnalyticsReport _analyticsReport;
         private string _activeBeamDataSource;
         private string _activeStarLabLogPath;
         private int _stationaryEntries;
@@ -35,12 +44,113 @@ namespace LaserEnergyMonitor.Wpf
             _liveUpdateTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher);
             _liveUpdateTimer.Interval = LiveUiUpdateInterval;
             _liveUpdateTimer.Tick += OnLiveUpdateTimerTick;
+            _analyticsReader = new MeasurementAnalyticsWorkbookReader();
+            _analyticsAnalyzer = new MeasurementAnalyticsAnalyzer();
+            _analyticsExporter = new MeasurementAnalyticsWorkbookExporter();
+            EnergyChartCanvas.SizeChanged += OnAnalyticsChartSizeChanged;
+            StabilityChartCanvas.SizeChanged += OnAnalyticsChartSizeChanged;
 
             BindStartupData();
+            ResetAnalyticsView();
             UpdateState(MeasurementSessionState.Idle);
             ResetLiveValues();
             ResetSessionReview();
             AddStatus("Application ready.");
+        }
+
+        private void OnOpenAnalyticsWorkbookClicked(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog dialog = new OpenFileDialog();
+            dialog.Filter = "Measurement workbook (*.xlsx)|*.xlsx|All files (*.*)|*.*";
+            dialog.Title = "Open measurement workbook";
+            if (dialog.ShowDialog(this) == true)
+            {
+                LoadAnalyticsWorkbook(dialog.FileName);
+            }
+        }
+
+        private void OnExportAnalyticsClicked(object sender, RoutedEventArgs e)
+        {
+            RunUiAction(
+                "Analytics export error",
+                delegate
+                {
+                    if (_analyticsReport == null)
+                    {
+                        throw new InvalidOperationException("Open a measurement workbook before exporting analytics.");
+                    }
+
+                    SaveFileDialog dialog = new SaveFileDialog();
+                    dialog.Filter = "Excel workbook (*.xlsx)|*.xlsx|All files (*.*)|*.*";
+                    dialog.Title = "Export analytics workbook";
+                    dialog.FileName = BuildDefaultAnalyticsFileName(_analyticsReport.SourcePath);
+                    string directory = Path.GetDirectoryName(_analyticsReport.SourcePath);
+                    if (!string.IsNullOrWhiteSpace(directory))
+                    {
+                        dialog.InitialDirectory = directory;
+                    }
+
+                    if (dialog.ShowDialog(this) == true)
+                    {
+                        _analyticsExporter.Export(_analyticsReport, dialog.FileName);
+                        AnalyticsStatusText.Text = "Analytics exported: " + dialog.FileName;
+                        AnalyticsStatusText.Foreground = GetBrush("StatusSuccessTextBrush");
+                    }
+                });
+        }
+
+        private void LoadAnalyticsWorkbook(string path)
+        {
+            RunUiAction(
+                "Analytics load error",
+                delegate
+                {
+                    AnalyticsStatusText.Text = "Loading analytics...";
+                    AnalyticsStatusText.Foreground = GetBrush("StatusNeutralTextBrush");
+                    MeasurementAnalyticsWorkbook workbook = _analyticsReader.Read(path);
+                    _analyticsReport = _analyticsAnalyzer.Analyze(workbook);
+                    BindAnalyticsReport(_analyticsReport);
+                });
+        }
+
+        private void ResetAnalyticsView()
+        {
+            _analyticsReport = null;
+            AnalyticsPathTextBox.Text = "No workbook selected.";
+            AnalyticsDurationText.Text = "-";
+            AnalyticsSamplesText.Text = "-";
+            AnalyticsFaultsText.Text = "-";
+            AnalyticsStationaryText.Text = "-";
+            AnalyticsWarningsText.Text = "No analytics workbook loaded.";
+            SourceStatsGrid.ItemsSource = null;
+            StationaryStatsGrid.ItemsSource = null;
+            ExportAnalyticsButton.IsEnabled = false;
+            EnergyChartCanvas.Children.Clear();
+            StabilityChartCanvas.Children.Clear();
+        }
+
+        private void BindAnalyticsReport(AnalyticsReport report)
+        {
+            AnalyticsPathTextBox.Text = report.SourcePath ?? string.Empty;
+            AnalyticsPathTextBox.ToolTip = AnalyticsPathTextBox.Text;
+            AnalyticsDurationText.Text = FormatDuration(report.DurationSeconds);
+            AnalyticsSamplesText.Text = report.SampleCount.ToString(CultureInfo.InvariantCulture);
+            AnalyticsFaultsText.Text = report.FaultCount.ToString(CultureInfo.InvariantCulture);
+            AnalyticsStationaryText.Text = FormatPercent(report.Stationary != null ? report.Stationary.BothStationaryPercent : null);
+            AnalyticsStatusText.Text = "Analytics loaded.";
+            AnalyticsStatusText.Foreground = GetBrush("StatusSuccessTextBrush");
+            AnalyticsWarningsText.Text = report.Warnings.Count > 0
+                ? string.Join(Environment.NewLine, report.Warnings)
+                : "No warnings.";
+            SourceStatsGrid.ItemsSource = BuildSourceStatsRows(report);
+            StationaryStatsGrid.ItemsSource = BuildStationaryRows(report);
+            ExportAnalyticsButton.IsEnabled = true;
+            RedrawAnalyticsCharts();
+        }
+
+        private void OnAnalyticsChartSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            RedrawAnalyticsCharts();
         }
 
         protected override void OnClosed(EventArgs e)
@@ -558,12 +668,34 @@ namespace LaserEnergyMonitor.Wpf
                 return "-";
             }
 
-            return FormatPercent(snapshot.StabilityMetric);
+            return FormatStabilityScoreFromInstability(snapshot.StabilityMetric);
         }
 
         private static string FormatPercent(double? value)
         {
             return value.HasValue ? value.Value.ToString("0.0000", CultureInfo.InvariantCulture) + "%" : "-";
+        }
+
+        private static string FormatStabilityScoreFromInstability(double? instabilityPercent)
+        {
+            return instabilityPercent.HasValue
+                ? ToStabilityScore(instabilityPercent.Value).ToString("0.###", CultureInfo.InvariantCulture) + "%"
+                : "-";
+        }
+
+        private static double? ToStabilityScore(double? instabilityPercent)
+        {
+            return instabilityPercent.HasValue ? ToStabilityScore(instabilityPercent.Value) : (double?)null;
+        }
+
+        private static double ToStabilityScore(double instabilityPercent)
+        {
+            if (double.IsNaN(instabilityPercent) || double.IsInfinity(instabilityPercent))
+            {
+                return 0.0d;
+            }
+
+            return Math.Max(0.0d, Math.Min(100.0d, 100.0d - instabilityPercent));
         }
 
         private void UpdateStabilityIndicator(System.Windows.Controls.Border tile, System.Windows.Controls.TextBlock target, double? metric)
@@ -614,7 +746,7 @@ namespace LaserEnergyMonitor.Wpf
                 borderBrushKey = "StatusDangerBorderBrush";
             }
 
-            target.Text = FormatPercent(metric) + " " + label;
+            target.Text = FormatStabilityScoreFromInstability(metric) + " " + label;
             target.Foreground = GetBrush(brushKey);
             ApplyStabilityBrushes(tile, backgroundBrushKey, borderBrushKey);
         }
@@ -670,6 +802,224 @@ namespace LaserEnergyMonitor.Wpf
             SummaryFaultsText.Text = summary.FaultCount.ToString(CultureInfo.InvariantCulture);
         }
 
+        private List<SourceStatsRow> BuildSourceStatsRows(AnalyticsReport report)
+        {
+            List<SourceStatsRow> rows = new List<SourceStatsRow>();
+            AddSourceStatsRow(rows, report.FirstSource);
+            AddSourceStatsRow(rows, report.SecondSource);
+            return rows;
+        }
+
+        private static void AddSourceStatsRow(List<SourceStatsRow> rows, SourceStatistics source)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            rows.Add(
+                new SourceStatsRow
+                {
+                    Source = string.IsNullOrWhiteSpace(source.SourceId) ? source.Slot : source.SourceId,
+                    Mean = FormatEnergyValue(source.Mean),
+                    StandardDeviation = FormatEnergyValue(source.StandardDeviation),
+                    CoefficientOfVariation = FormatPercent(source.CoefficientOfVariationPercent),
+                    Drift = FormatPercent(source.DriftPercent),
+                    Stationary = FormatPercent(source.StationaryPercent)
+                });
+        }
+
+        private List<MetricRow> BuildStationaryRows(AnalyticsReport report)
+        {
+            StationaryStatistics stationary = report.Stationary ?? new StationaryStatistics();
+            ComparisonStatistics comparison = report.Comparison ?? new ComparisonStatistics();
+            return new List<MetricRow>
+            {
+                new MetricRow { Metric = "Stationary segments", Value = stationary.SegmentCount.ToString(CultureInfo.InvariantCulture) },
+                new MetricRow { Metric = "Total stationary time", Value = FormatDuration(stationary.TotalDurationSeconds) },
+                new MetricRow { Metric = "Longest segment", Value = FormatDuration(stationary.LongestDurationSeconds) },
+                new MetricRow { Metric = "Average segment", Value = FormatDuration(stationary.AverageDurationSeconds) },
+                new MetricRow { Metric = "Entry score avg", Value = FormatStabilityScoreFromInstability(stationary.AverageEntryStabilityPercent) },
+                new MetricRow { Metric = "Exit score avg", Value = FormatStabilityScoreFromInstability(stationary.AverageExitStabilityPercent) },
+                new MetricRow { Metric = "Mean Beam/Ophir ratio", Value = FormatNumber(comparison.MeanRatio) },
+                new MetricRow { Metric = "Correlation", Value = FormatNumber(comparison.Correlation) },
+                new MetricRow { Metric = "Average abs delta", Value = FormatEnergyValue(comparison.AverageAbsoluteDelta) }
+            };
+        }
+
+        private void RedrawAnalyticsCharts()
+        {
+            if (_analyticsReport == null)
+            {
+                return;
+            }
+
+            DrawChart(
+                EnergyChartCanvas,
+                new[]
+                {
+                    new ChartSeries("BeamGage", _analyticsReport.ChartPoints.Select(point => point.FirstEnergy).ToList(), GetBrush("AccentBrush")),
+                    new ChartSeries("Ophir", _analyticsReport.ChartPoints.Select(point => point.SecondEnergy).ToList(), GetBrush("SuccessBrush"))
+                });
+            DrawChart(
+                StabilityChartCanvas,
+                new[]
+                {
+                    new ChartSeries("BeamGage", _analyticsReport.ChartPoints.Select(point => ToStabilityScore(point.FirstStabilityPercent)).ToList(), GetBrush("AccentBrush")),
+                    new ChartSeries("Ophir", _analyticsReport.ChartPoints.Select(point => ToStabilityScore(point.SecondStabilityPercent)).ToList(), GetBrush("SuccessBrush")),
+                    new ChartSeries("Overall", _analyticsReport.ChartPoints.Select(point => ToStabilityScore(point.OverallStabilityPercent)).ToList(), GetBrush("WarningBrush"))
+                });
+        }
+
+        private void DrawChart(Canvas canvas, IEnumerable<ChartSeries> series)
+        {
+            if (canvas == null)
+            {
+                return;
+            }
+
+            canvas.Children.Clear();
+            double width = canvas.ActualWidth;
+            double height = canvas.ActualHeight;
+            if (width < 20.0d || height < 20.0d)
+            {
+                return;
+            }
+
+            List<ChartSeries> seriesList = series.ToList();
+            List<double> values = seriesList
+                .SelectMany(item => item.Values)
+                .Where(value => value.HasValue)
+                .Select(value => value.Value)
+                .ToList();
+            if (values.Count == 0)
+            {
+                AddChartMessage(canvas, "No chart data.");
+                return;
+            }
+
+            double min = values.Min();
+            double max = values.Max();
+            if (Math.Abs(max - min) < 0.000000001d)
+            {
+                min -= 1.0d;
+                max += 1.0d;
+            }
+
+            DrawChartGrid(canvas, width, height);
+            int maxCount = seriesList.Max(item => item.Values.Count);
+            foreach (ChartSeries item in seriesList)
+            {
+                WpfPolyline line = new WpfPolyline
+                {
+                    Stroke = item.Brush,
+                    StrokeThickness = 2.0d,
+                    SnapsToDevicePixels = true
+                };
+
+                for (int i = 0; i < item.Values.Count; i++)
+                {
+                    double? value = item.Values[i];
+                    if (!value.HasValue)
+                    {
+                        continue;
+                    }
+
+                    double x = maxCount <= 1 ? width / 2.0d : i * (width - 12.0d) / (maxCount - 1) + 6.0d;
+                    double normalized = (value.Value - min) / (max - min);
+                    double y = height - 8.0d - normalized * (height - 18.0d);
+                    line.Points.Add(new Point(x, y));
+                }
+
+                if (line.Points.Count > 1)
+                {
+                    canvas.Children.Add(line);
+                }
+            }
+
+            AddChartScaleLabel(canvas, min, max);
+        }
+
+        private static void DrawChartGrid(Canvas canvas, double width, double height)
+        {
+            for (int i = 1; i < 4; i++)
+            {
+                double y = i * height / 4.0d;
+                WpfLine line = new WpfLine
+                {
+                    X1 = 0.0d,
+                    X2 = width,
+                    Y1 = y,
+                    Y2 = y,
+                    Stroke = new SolidColorBrush(Color.FromRgb(215, 224, 234)),
+                    StrokeThickness = 1.0d
+                };
+                canvas.Children.Add(line);
+            }
+        }
+
+        private static void AddChartMessage(Canvas canvas, string message)
+        {
+            TextBlock text = new TextBlock
+            {
+                Text = message,
+                Foreground = new SolidColorBrush(Color.FromRgb(98, 112, 137)),
+                FontSize = 13.0d
+            };
+            Canvas.SetLeft(text, 12.0d);
+            Canvas.SetTop(text, 12.0d);
+            canvas.Children.Add(text);
+        }
+
+        private static void AddChartScaleLabel(Canvas canvas, double min, double max)
+        {
+            TextBlock text = new TextBlock
+            {
+                Text = "min " + FormatNumber(min) + "   max " + FormatNumber(max),
+                Foreground = new SolidColorBrush(Color.FromRgb(98, 112, 137)),
+                FontSize = 11.0d
+            };
+            Canvas.SetLeft(text, 8.0d);
+            Canvas.SetTop(text, 6.0d);
+            canvas.Children.Add(text);
+        }
+
+        private static string BuildDefaultAnalyticsFileName(string sourcePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath))
+            {
+                return "measurement-session.Analytics.xlsx";
+            }
+
+            return Path.GetFileNameWithoutExtension(sourcePath) + ".Analytics.xlsx";
+        }
+
+        private static string FormatDuration(double? seconds)
+        {
+            if (!seconds.HasValue)
+            {
+                return "-";
+            }
+
+            TimeSpan duration = TimeSpan.FromSeconds(seconds.Value);
+            return duration.ToString(duration.TotalHours >= 1.0d ? @"h\:mm\:ss" : @"m\:ss", CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatEnergyValue(double? value)
+        {
+            return value.HasValue ? value.Value.ToString("0.000000", CultureInfo.InvariantCulture) : "-";
+        }
+
+        private static string FormatNumber(double? value)
+        {
+            return value.HasValue ? value.Value.ToString("0.######", CultureInfo.InvariantCulture) : "-";
+        }
+
+        private static string FormatNumber(double value)
+        {
+            return value.ToString("0.######", CultureInfo.InvariantCulture);
+        }
+
         private void UpdateBeamStatus()
         {
             string selected = BeamPhysicalSourceComboBox != null ? BeamPhysicalSourceComboBox.SelectedItem as string : null;
@@ -718,6 +1068,36 @@ namespace LaserEnergyMonitor.Wpf
         {
             LastStatusText.Text = DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + "  " + message;
             LastStatusText.Foreground = error ? GetBrush("StatusDangerTextBrush") : GetBrush("StatusNeutralTextBrush");
+        }
+
+        private sealed class SourceStatsRow
+        {
+            public string Source { get; set; }
+            public string Mean { get; set; }
+            public string StandardDeviation { get; set; }
+            public string CoefficientOfVariation { get; set; }
+            public string Drift { get; set; }
+            public string Stationary { get; set; }
+        }
+
+        private sealed class MetricRow
+        {
+            public string Metric { get; set; }
+            public string Value { get; set; }
+        }
+
+        private sealed class ChartSeries
+        {
+            public ChartSeries(string name, List<double?> values, Brush brush)
+            {
+                Name = name;
+                Values = values;
+                Brush = brush;
+            }
+
+            public string Name { get; private set; }
+            public List<double?> Values { get; private set; }
+            public Brush Brush { get; private set; }
         }
     }
 }
