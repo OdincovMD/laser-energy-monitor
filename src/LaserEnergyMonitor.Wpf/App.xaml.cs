@@ -17,8 +17,13 @@ namespace LaserEnergyMonitor.Wpf
             IOperatorNotifier notifier = new WpfOperatorNotifier();
             IClock clock = new SystemClock();
             MeasurementSessionRuntimeFactory runtimeFactory = new MeasurementSessionRuntimeFactory(logPath, notifier, clock);
+            string settingsPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LaserEnergyMonitor",
+                "operator-settings.xml");
+            OperatorUserSettingsStore operatorSettingsStore = new OperatorUserSettingsStore(settingsPath);
 
-            MainWindow = new MainWindow(runtimeFactory, outputDir);
+            MainWindow = new MainWindow(runtimeFactory, outputDir, operatorSettingsStore);
             MainWindow.Show();
         }
     }

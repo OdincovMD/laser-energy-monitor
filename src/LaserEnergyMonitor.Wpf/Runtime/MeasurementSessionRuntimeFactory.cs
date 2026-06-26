@@ -14,7 +14,7 @@ using LaserEnergyMonitor.Infrastructure.Ophir;
 
 namespace LaserEnergyMonitor.Wpf
 {
-    public sealed class MeasurementSessionRuntimeFactory
+    public sealed class MeasurementSessionRuntimeFactory : IBeamGagePreflightProbe
     {
         private readonly string _logPath;
         private readonly IOperatorNotifier _notifier;
@@ -39,6 +39,11 @@ namespace LaserEnergyMonitor.Wpf
         public string ConfiguredStarLabLogPath
         {
             get { return _starLabLogOptions.LogFilePath; }
+        }
+
+        public string ConfiguredStarLabEnergyColumnName
+        {
+            get { return _starLabLogOptions.EnergyColumnName; }
         }
 
         public IReadOnlyList<string> DiscoverBeamGagePhysicalDataSources()
@@ -78,6 +83,70 @@ namespace LaserEnergyMonitor.Wpf
                 new AsyncApplicationLogger(new FileApplicationLogger(_logPath)),
                 _notifier,
                 _clock);
+        }
+
+        public BeamGagePreflightProbeResult Inspect()
+        {
+            try
+            {
+                IReadOnlyList<string> dataSources = DiscoverBeamGagePhysicalDataSources();
+                return new BeamGagePreflightProbeResult
+                {
+                    DependencyAvailable = true,
+                    PhysicalSources = dataSources,
+                    Details = "BeamGage physical source scan completed."
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BeamGagePreflightProbeResult
+                {
+                    DependencyAvailable = false,
+                    PhysicalSources = new string[0],
+                    Details = ex.Message,
+                    Exception = ex
+                };
+            }
+        }
+
+        public void LogPreflightReport(SessionPreflightReport report)
+        {
+            if (report == null)
+            {
+                return;
+            }
+
+            try
+            {
+                FileApplicationLogger logger = new FileApplicationLogger(_logPath);
+                logger.Info("Self-Test started.");
+                foreach (PreflightCheckResult check in report.Checks)
+                {
+                    string message = check.Name + " [" + check.Status + "] " + check.Message;
+                    if (!string.IsNullOrWhiteSpace(check.Details))
+                    {
+                        message += " Details: " + check.Details;
+                    }
+
+                    if (check.Status == PreflightCheckStatus.Failed)
+                    {
+                        logger.Error(message);
+                    }
+                    else if (check.Status == PreflightCheckStatus.Warning)
+                    {
+                        logger.Warning(message);
+                    }
+                    else
+                    {
+                        logger.Info(message);
+                    }
+                }
+
+                logger.Info("Self-Test finished.");
+            }
+            catch
+            {
+            }
         }
 
         private static StarLabLogMeasurementOptions LoadStarLabLogOptions()

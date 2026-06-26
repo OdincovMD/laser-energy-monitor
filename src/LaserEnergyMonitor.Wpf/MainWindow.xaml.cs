@@ -9,7 +9,9 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using LaserEnergyMonitor.Application;
 using LaserEnergyMonitor.Domain;
+using LaserEnergyMonitor.Infrastructure;
 using LaserEnergyMonitor.Infrastructure.Excel;
+using LaserEnergyMonitor.Infrastructure.Ophir;
 using Microsoft.Win32;
 using WpfLine = System.Windows.Shapes.Line;
 using WpfPolyline = System.Windows.Shapes.Polyline;
@@ -26,6 +28,8 @@ namespace LaserEnergyMonitor.Wpf
         private readonly MeasurementAnalyticsWorkbookReader _analyticsReader;
         private readonly MeasurementAnalyticsAnalyzer _analyticsAnalyzer;
         private readonly MeasurementAnalyticsWorkbookExporter _analyticsExporter;
+        private readonly OperatorUserSettingsStore _operatorSettingsStore;
+        private readonly SessionPreflightService _preflightService;
         private MeasurementSessionService _service;
         private LiveMeasurementSnapshot _pendingLiveSnapshot;
         private AnalyticsReport _analyticsReport;
@@ -35,10 +39,11 @@ namespace LaserEnergyMonitor.Wpf
         private bool _liveUpdatePumpActive;
         private bool _isBindingStartupData;
 
-        public MainWindow(MeasurementSessionRuntimeFactory runtimeFactory, string defaultOutputDir)
+        public MainWindow(MeasurementSessionRuntimeFactory runtimeFactory, string defaultOutputDir, OperatorUserSettingsStore operatorSettingsStore)
         {
             _runtimeFactory = runtimeFactory;
             _defaultOutputDir = defaultOutputDir;
+            _operatorSettingsStore = operatorSettingsStore ?? throw new ArgumentNullException("operatorSettingsStore");
 
             InitializeComponent();
             _liveUpdateTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher);
@@ -47,6 +52,7 @@ namespace LaserEnergyMonitor.Wpf
             _analyticsReader = new MeasurementAnalyticsWorkbookReader();
             _analyticsAnalyzer = new MeasurementAnalyticsAnalyzer();
             _analyticsExporter = new MeasurementAnalyticsWorkbookExporter();
+            _preflightService = new SessionPreflightService(new StarLabLogPreflightProbe(), _runtimeFactory);
             EnergyChartCanvas.SizeChanged += OnAnalyticsChartSizeChanged;
             StabilityChartCanvas.SizeChanged += OnAnalyticsChartSizeChanged;
 
@@ -155,6 +161,7 @@ namespace LaserEnergyMonitor.Wpf
 
         protected override void OnClosed(EventArgs e)
         {
+            SaveOperatorSettings();
             _liveUpdateTimer.Stop();
             ReplaceService(null);
             base.OnClosed(e);
@@ -165,16 +172,28 @@ namespace LaserEnergyMonitor.Wpf
             _isBindingStartupData = true;
             try
             {
-                BindBeamGagePhysicalDataSources(
-                    string.IsNullOrWhiteSpace(_runtimeFactory.ConfiguredBeamGageDataSource)
-                        ? new string[0]
-                        : new[] { _runtimeFactory.ConfiguredBeamGageDataSource },
-                    _runtimeFactory.ConfiguredBeamGageDataSource);
+                OperatorUserSettings saved = LoadOperatorSettings();
+                string beamDataSource = FirstNonEmpty(saved.BeamGageDataSource, _runtimeFactory.ConfiguredBeamGageDataSource);
+                if (!string.IsNullOrWhiteSpace(beamDataSource))
+                {
+                    _runtimeFactory.SelectBeamGagePhysicalDataSource(beamDataSource);
+                }
 
-                OutputPathTextBox.Text = Path.Combine(_defaultOutputDir, "measurement-session.xlsx");
+                BindBeamGagePhysicalDataSources(
+                    string.IsNullOrWhiteSpace(beamDataSource)
+                        ? new string[0]
+                        : new[] { beamDataSource },
+                    beamDataSource);
+
+                SessionNameTextBox.Text = FirstNonEmpty(saved.SessionName, SessionNameTextBox.Text);
+                WindowSizeTextBox.Text = FirstNonEmpty(saved.RollingWindowSize, WindowSizeTextBox.Text);
+                EnterThresholdTextBox.Text = FirstNonEmpty(saved.EnterThresholdPercent, EnterThresholdTextBox.Text);
+                ExitThresholdTextBox.Text = FirstNonEmpty(saved.ExitThresholdPercent, ExitThresholdTextBox.Text);
+                OutputPathTextBox.Text = FirstNonEmpty(saved.OutputPath, Path.Combine(_defaultOutputDir, "measurement-session.xlsx"));
                 OutputPathTextBox.ToolTip = OutputPathTextBox.Text;
-                StarLabLogPathTextBox.Text = _runtimeFactory.ConfiguredStarLabLogPath;
+                StarLabLogPathTextBox.Text = FirstNonEmpty(saved.StarLabLogPath, _runtimeFactory.ConfiguredStarLabLogPath);
                 StarLabLogPathTextBox.ToolTip = StarLabLogPathTextBox.Text;
+                SynchronizeStarLabLogPath();
                 UpdateOphirStatus();
             }
             finally
@@ -189,6 +208,13 @@ namespace LaserEnergyMonitor.Wpf
                 "Start error",
                 delegate
                 {
+                    SessionPreflightReport report = RunSelfTest();
+                    if (report.HasFailures)
+                    {
+                        throw new InvalidOperationException(_preflightService.BuildFailureMessage(report));
+                    }
+
+                    SaveOperatorSettings();
                     MeasurementSessionService service = EnsureInitializedService(BuildSettings(), false);
                     service.Start();
                     AddStatus("Session started.");
@@ -240,7 +266,31 @@ namespace LaserEnergyMonitor.Wpf
                     DisconnectServiceForBeamGageReconnection();
                     _runtimeFactory.SelectBeamGagePhysicalDataSource(selectedDataSource);
                     EnsureInitializedService(BuildSettings(), true);
+                    SaveOperatorSettings();
                     AddStatus("BeamGage source connected: " + selectedDataSource);
+                });
+        }
+
+        private void OnSelfTestClicked(object sender, RoutedEventArgs e)
+        {
+            RunUiAction(
+                "Self-Test error",
+                delegate
+                {
+                    SessionPreflightReport report = RunSelfTest();
+                    SaveOperatorSettings();
+                    if (report.HasFailures)
+                    {
+                        AddStatus("Self-Test failed. Review failed checks.", true);
+                    }
+                    else if (report.HasWarnings)
+                    {
+                        AddStatus("Self-Test completed with warnings.");
+                    }
+                    else
+                    {
+                        AddStatus("Self-Test passed.");
+                    }
                 });
         }
 
@@ -260,6 +310,7 @@ namespace LaserEnergyMonitor.Wpf
             {
                 OutputPathTextBox.Text = dialog.FileName;
                 OutputPathTextBox.ToolTip = dialog.FileName;
+                SaveOperatorSettings();
             }
         }
 
@@ -282,6 +333,7 @@ namespace LaserEnergyMonitor.Wpf
                 SynchronizeStarLabLogPath();
                 UpdateOphirStatus();
                 DisconnectServiceForSourceChange();
+                SaveOperatorSettings();
                 AddStatus("StarLab log selected: " + dialog.FileName);
             }
         }
@@ -294,6 +346,7 @@ namespace LaserEnergyMonitor.Wpf
             }
 
             UpdateBeamGagePhysicalControls();
+            SaveOperatorSettings();
         }
 
         private void RunUiAction(string title, Action action)
@@ -307,6 +360,118 @@ namespace LaserEnergyMonitor.Wpf
                 AddStatus(ex.Message, true);
                 MessageBox.Show(this, ex.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private SessionPreflightReport RunSelfTest()
+        {
+            SynchronizeStarLabLogPath();
+            string selectedBeamDataSource = BeamPhysicalSourceComboBox.SelectedItem as string;
+            if (!string.IsNullOrWhiteSpace(selectedBeamDataSource))
+            {
+                _runtimeFactory.SelectBeamGagePhysicalDataSource(selectedBeamDataSource);
+            }
+            else
+            {
+                selectedBeamDataSource = _runtimeFactory.ConfiguredBeamGageDataSource;
+            }
+
+            SessionPreflightReport report = _preflightService.Run(
+                new SessionPreflightRequest
+                {
+                    Settings = BuildSettings(),
+                    StarLabLogPath = StarLabLogPathTextBox.Text,
+                    StarLabEnergyColumnName = _runtimeFactory.ConfiguredStarLabEnergyColumnName,
+                    BeamGageSelectedSource = selectedBeamDataSource,
+                    BuildConfiguration = ResolveBuildConfiguration()
+                });
+
+            BindPreflightResults(report);
+            _runtimeFactory.LogPreflightReport(report);
+            return report;
+        }
+
+        private void BindPreflightResults(SessionPreflightReport report)
+        {
+            if (PreflightResultsListBox == null)
+            {
+                return;
+            }
+
+            PreflightResultsListBox.ItemsSource = report != null
+                ? report.Checks.Select(FormatPreflightCheck).ToArray()
+                : new string[0];
+        }
+
+        private static string FormatPreflightCheck(PreflightCheckResult check)
+        {
+            if (check == null)
+            {
+                return string.Empty;
+            }
+
+            return check.Status.ToString().ToUpperInvariant() + " - " + check.Name + ": " + check.Message;
+        }
+
+        private OperatorUserSettings LoadOperatorSettings()
+        {
+            try
+            {
+                return _operatorSettingsStore.Load();
+            }
+            catch
+            {
+                return new OperatorUserSettings();
+            }
+        }
+
+        private void SaveOperatorSettings()
+        {
+            if (_isBindingStartupData ||
+                _operatorSettingsStore == null ||
+                SessionNameTextBox == null ||
+                WindowSizeTextBox == null ||
+                EnterThresholdTextBox == null ||
+                ExitThresholdTextBox == null ||
+                OutputPathTextBox == null ||
+                StarLabLogPathTextBox == null ||
+                BeamPhysicalSourceComboBox == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _operatorSettingsStore.Save(
+                    new OperatorUserSettings
+                    {
+                        SessionName = SessionNameTextBox.Text,
+                        RollingWindowSize = WindowSizeTextBox.Text,
+                        EnterThresholdPercent = EnterThresholdTextBox.Text,
+                        ExitThresholdPercent = ExitThresholdTextBox.Text,
+                        OutputPath = OutputPathTextBox.Text,
+                        StarLabLogPath = StarLabLogPathTextBox.Text,
+                        BeamGageDataSource = FirstNonEmpty(
+                            BeamPhysicalSourceComboBox.SelectedItem as string,
+                            _runtimeFactory.ConfiguredBeamGageDataSource)
+                    });
+            }
+            catch
+            {
+            }
+        }
+
+        private static string FirstNonEmpty(string first, string second)
+        {
+            return string.IsNullOrWhiteSpace(first) ? second : first;
+        }
+
+        private static string ResolveBuildConfiguration()
+        {
+#if DEBUG
+            return "Debug";
+#else
+            return "Release";
+#endif
         }
 
         private MeasurementSessionService EnsureInitializedService(SessionSettings settings, bool forceRecreate)
@@ -577,6 +742,7 @@ namespace LaserEnergyMonitor.Wpf
             StopButton.IsEnabled =
                 state == MeasurementSessionState.Measuring ||
                 state == MeasurementSessionState.Stationary;
+            SelfTestButton.IsEnabled = !locked;
             SessionNameTextBox.IsReadOnly = locked;
             WindowSizeTextBox.IsReadOnly = locked;
             EnterThresholdTextBox.IsReadOnly = locked;

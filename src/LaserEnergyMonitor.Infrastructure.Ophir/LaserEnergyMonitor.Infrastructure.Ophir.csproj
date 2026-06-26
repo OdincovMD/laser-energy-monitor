@@ -7,6 +7,7 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\LaserEnergyMonitor.Application\LaserEnergyMonitor.Application.csproj" />
     <ProjectReference Include="..\LaserEnergyMonitor.Domain\LaserEnergyMonitor.Domain.csproj" />
   </ItemGroup>
 </Project>

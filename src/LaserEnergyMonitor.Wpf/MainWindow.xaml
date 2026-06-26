@@ -238,6 +238,11 @@
                                 Style="{StaticResource SetupSecondaryButton}"
                                 Click="OnStopClicked" />
                     </Grid>
+                    <Button x:Name="SelfTestButton"
+                            Content="Self-Test"
+                            Style="{StaticResource SetupSecondaryButton}"
+                            Margin="0,10,0,0"
+                            Click="OnSelfTestClicked" />
 
                     <TextBlock Text="STATUS" Style="{StaticResource FieldGroupTitle}" />
                     <Border Style="{StaticResource FieldGroupRule}" Margin="0,0,0,10" />
@@ -267,6 +272,10 @@
                             <TextBlock x:Name="LastStatusText" Grid.Row="4" Grid.Column="1" Text="Application ready." FontSize="13" TextWrapping="Wrap" TextTrimming="None" />
                         </Grid>
                     </Border>
+                    <ListBox x:Name="PreflightResultsListBox"
+                             Height="128"
+                             Margin="0,10,0,0"
+                             FontSize="12" />
                 </StackPanel>
             </ScrollViewer>
         </Border>
