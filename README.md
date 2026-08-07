@@ -54,8 +54,3 @@ msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
 - [Кодекс поведения](CODE_OF_CONDUCT.md)
 - [Чеклист релиза](RELEASE_CHECKLIST.md)
 - [Список изменений](RELEASE_NOTES.md)
-
-## Полезно перед проверкой стенда
-
-- сначала сверяйте [Статус реализации](docs/implementation-status.md);
-
