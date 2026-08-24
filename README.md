@@ -10,7 +10,6 @@
 - бизнес-логика и оркестрация сценариев вынесены в `src/LaserEnergyMonitor.Application`;
 - доменная модель и алгоритмы находятся в `src/LaserEnergyMonitor.Domain`;
 - интеграции, экспорт и логирование собраны в `src/LaserEnergyMonitor.Infrastructure*`;
-- unit-тесты лежат в `tests/LaserEnergyMonitor.Tests`.
 
 ## Текущий стек
 
