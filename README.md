@@ -11,14 +11,6 @@
 - доменная модель и алгоритмы находятся в `src/LaserEnergyMonitor.Domain`;
 - интеграции, экспорт и логирование собраны в `src/LaserEnergyMonitor.Infrastructure*`;
 
-## Текущий стек
-
-- платформа: `.NET Framework 4.8`;
-- целевая разрядность: `x86`;
-- UI: `WPF`;
-- режимы работы: симуляция, `BeamGage`, `Ophir`.
-
-Подробнее о причинах такого выбора: [Архитектура и стек](docs/architecture-and-stack.md).
 
 ## Быстрый старт
 
