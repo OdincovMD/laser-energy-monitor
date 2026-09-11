@@ -21,13 +21,7 @@
    - для реального `BeamGage` и `Ophir` нужны соответствующие компоненты вендора.
 4. Запустите проект `LaserEnergyMonitor.Wpf`.
 
-## Сборка
 
-Типичный сценарий сборки:
-
-```powershell
-msbuild LaserEnergyMonitor.sln /p:Configuration=Release /p:Platform=x86
-```
 
 ## Документация
 
