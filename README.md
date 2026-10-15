@@ -11,9 +11,6 @@
 - доменная модель и алгоритмы находятся в `src/LaserEnergyMonitor.Domain`;
 - интеграции, экспорт и логирование собраны в `src/LaserEnergyMonitor.Infrastructure*`;
 
-
-## Быстрый старт
-
 1. Откройте `LaserEnergyMonitor.sln` в Visual Studio 2022 или соберите решение через MSBuild.
 2. Выберите конфигурацию `Release|x86`.
 3. Проверьте зависимости для нужного режима работы:
